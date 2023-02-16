@@ -580,7 +580,7 @@ def plotDAMPsummary(model_data,proxy_data,var_key,times=[21,6],season='annual',b
         v = np.nanquantile(np.abs(damp['recon']-vals0),0.9) 
         levs = np.linspace(-v,v,13)
         levs -= np.median(np.diff(levs))/2
-        levs = np.append(levs,-levs[0])
+        levs = np.append(levs,-levs[0])#
         #Plot
         for i,t in enumerate(times):
             valsT = damp['recon'].sel(ages=slice(t*1000-bs/2,t*1000+bs/2)).mean(dim='ages')
