@@ -28,8 +28,8 @@ starttime_total = time.time() # Start timer
 
 # Use a given config file.  If not given, use config_default.yml.
 if len(sys.argv) > 1: config_file = sys.argv[1]
-#else:                 config_file = 'config.yml'
-else:                 config_file = 'config_default.yml'
+else:                 config_file = 'config.yml'
+#else:                 config_file = 'config_default.yml'
 
 # Load the configuration options and print them to the screen.
 print('Using configuration file: '+config_file)
