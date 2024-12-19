@@ -363,7 +363,7 @@ def process_proxies(proxy_ts,collection_all,options):
         proxy_data['metadata'][i,3] = str(proxy_lon)
         proxy_data['metadata'][i,4] = str(proxy_seasonality_array)
         proxy_data['metadata'][i,5] = proxy_seasonality_general
-        proxy_data['metadata'][i,6] = str(np.median(proxy_ages[1:]-proxy_ages[:-1]))
+        proxy_data['metadata'][i,6] = str(np.median(proxy_ages[1:]-proxy_ages[:-1]))  #TODO: Consider calculating this a different way.
         proxy_data['metadata'][i,7] = collection_all[i]
         proxy_data['metadata'][i,8] = proxy_ts[i]['paleoData_units']
         proxy_data['metadata'][i,9] = proxy_ts[i]['paleoData_interpretation'][0]['variable']
