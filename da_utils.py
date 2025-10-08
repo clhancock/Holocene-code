@@ -30,7 +30,59 @@ def damup(Xb,HXb,R,y):
     #     Xam = analysis mean [n_state]
     #
     # Number of ensemble members
-    nens = Xb.shape[1] 
+    nens = Xb.shape[1]
+    #
+    # Decompose Xb and HXb into mean and perturbations (for Eqs. 4 & Sec 3)
+    Xbm = np.mean(Xb,axis=1)
+    Xbp = Xb - Xbm[:,None]
+    #
+    HXbm = np.mean(HXb,axis=1)
+    HXbp = HXb - HXbm[:,None]
+    #
+    # Kalman gain for mean and matrix covariances (Eq. 2)
+    PbHT   = np.dot(Xbp, np.transpose(HXbp))/(nens-1)
+    HPbHTR = np.dot(HXbp,np.transpose(HXbp))/(nens-1)+R
+    K = np.dot(PbHT,np.linalg.inv(HPbHTR))
+    #
+    # Kalman gain for the perturbations (Eq. 10)
+    sHPbHTR = sqrtm(HPbHTR)
+    sR      = sqrtm(R)
+    Ktn = np.dot(PbHT,np.transpose(np.linalg.inv(sHPbHTR)))
+    Ktd = np.linalg.inv(sHPbHTR+sR)
+    Kt = np.dot(Ktn,Ktd)
+    #
+    # Update mean and perturbations (Eq. 4 & Sec 3)
+    Xam = Xbm + np.dot(K,(y-HXbm))
+    Xap = Xbp - np.dot(Kt,HXbp)
+    #
+    # Reconstitute the full ensemble state vector
+    Xa = Xap + Xam[:,None]
+    #
+    # Output both the full ensemble and the ensemble mean
+    return Xa,Xam,K
+
+
+# A function to do the data assimilation.  It is based on '2_darecon.jl',
+# originally written by Nathan Steiger.
+#Xb,HXb,R,y = Xb,np.transpose(model_estimates_selected),R_diagonal,proxy_values_selected
+def damup_explore(Xb,HXb,R,y):
+    #
+    # Data assimilation matrix update step, assimilating all observations
+    # for a given time step at once. Variables with their dimensions are 
+    # indicated by [dim1 dim2] given below. This set of update equations
+    # follow those from Whitaker and Hamill 2002: Eq. 2, 4, 10, & Sec 3.
+    # ARGUMENTS:
+    #     Xb = background (prior) [n_state, n_ens]
+    #     HXb = model estimate of observations H(Xb) [n_proxies_valid, n_ens]
+    #     y = observation (with implied noise) [n_proxies_valid]
+    #     R = diagonal observation error variance matrix [n_proxies_valid, n_proxies_valid]
+    #     infl = inflation factor [scalar] **Note: modify code to include**
+    # RETURNS:
+    #     Xa = analysis (posterior) [n_state, n_ens]
+    #     Xam = analysis mean [n_state]
+    #
+    # Number of ensemble members
+    nens = Xb.shape[1]
     #
     # Decompose Xb and HXb into mean and perturbations (for Eqs. 4 & Sec 3)
     Xbm = np.mean(Xb,axis=1)

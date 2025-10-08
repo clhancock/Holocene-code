@@ -191,7 +191,8 @@ def process_models(model_name,var_name,time_resolution,age_range,output_dir,orig
     """
     #
     # If the model name ends in "_regrid", remove that part of the model name.
-    if model_name[-7:] == '_regrid': model_name = model_name[:-7]
+    if model_name[-7:]  == '_regrid': model_name = model_name[:-7]
+    #if model_name[-14:] == '_regrid_arctic': model_name = model_name[:-14]
     #
     # Set directories
     data_dir = {}

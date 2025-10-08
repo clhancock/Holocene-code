@@ -57,6 +57,34 @@ def load_proxies(options):
                 if proxy_ts[i]['paleoData_TSid'] == 'RXEc3JaUSUk': proxy_ts[i]['paleoData_temperature12kUncertainty'] = 2.1  # This record has an uncertainty value of "3; 2", but it should be 2.1.
                 if proxy_ts[i]['paleoData_TSid'] == 'RWzl4NCma8r': proxy_ts[i]['paleoData_interpretation'][0]['seasonality'] = 'summer'  # This record is lacking a seasonality field.
             #
+        elif proxy_dataset == 'raw':
+            #
+            # Load the processed RAW proxy data
+            dir_proxies = '/projects/pd_lab/data/proxies/Rapid_Arctic_Warming/RAW_processed/'
+            if options['version_temp12k'] == 'raw_positive_corr': file_proxies = 'RAW_proxies_processed_positive_corr.pickle'
+            else:                                                 file_proxies = 'RAW_proxies_processed.pickle'
+            file_to_open = open(dir_proxies+file_proxies,'rb')
+            all_ts_raw = pickle.load(file_to_open)
+            file_to_open.close()
+            #
+            # Only use temperature records
+            variable_all = []
+            n_proxies = len(all_ts_raw)
+            for i in range(n_proxies):
+                try:    variable_all.append(all_ts_raw[i]['paleoData_interpretation'][0]['variable'])
+                except: variable_all.append('Not given')
+            #
+            #ind_temp = np.where((np.array(variable_all) == 'Temperature'))[0]
+            #proxy_ts_raw = [all_ts_raw[ind] for ind in ind_temp]
+            proxy_ts_raw = all_ts_raw
+            #
+            # Only use records in units of degC
+            #proxy_ts_raw = lipd.filterTs(all_ts_raw,'paleoData_units == degC')
+            if options['reconstruction_type'] == 'absolute': proxy_ts_raw = lipd.filterTs(proxy_ts_raw,'paleoData_datum == abs')
+            #
+            proxy_ts = proxy_ts + proxy_ts_raw
+            collection_all = collection_all + ([proxy_dataset] * len(proxy_ts_raw))
+            #
         elif proxy_dataset == 'hydro12k':
             #
             # Load the uncertainty file #TODO: Incorporate this into the code better
@@ -168,7 +196,7 @@ def process_proxies(proxy_ts,collection_all,options):
     proxy_data = {}
     proxy_data['values_binned']     = np.zeros((n_proxies,n_ages));          proxy_data['values_binned'][:]     = np.nan
     proxy_data['resolution_binned'] = np.zeros((n_proxies,n_ages));          proxy_data['resolution_binned'][:] = np.nan
-    proxy_data['metadata']          = np.zeros((n_proxies,10),dtype=object); proxy_data['metadata'][:]          = np.nan
+    proxy_data['metadata']          = np.zeros((n_proxies,11),dtype=object); proxy_data['metadata'][:]          = np.nan
     proxy_data['lats']              = np.zeros((n_proxies));                 proxy_data['lats'][:]              = np.nan
     proxy_data['lons']              = np.zeros((n_proxies));                 proxy_data['lons'][:]              = np.nan
     #proxy_data['uncertainty']       = np.zeros((n_proxies));                 proxy_data['uncertainty'][:]       = np.nan
@@ -177,6 +205,7 @@ def process_proxies(proxy_ts,collection_all,options):
     proxy_data['proxytype']         = []
     proxy_data['units']             = []
     proxy_data['interp']            = []
+    proxy_data['direction']         = []
     proxy_data['seasonality_array'] = {}
     #
     # If using data from age-uncertainty ensembles, load the data here
@@ -200,6 +229,7 @@ def process_proxies(proxy_ts,collection_all,options):
     for i in range(n_proxies):
         #
         # Get proxy data
+        print('Processing proxies:',i)
         proxy_ages   = np.array(proxy_ts[i]['age']).astype(float)
         proxy_values = np.array(proxy_ts[i]['paleoData_values']).astype(float)
         #
@@ -211,6 +241,16 @@ def process_proxies(proxy_ts,collection_all,options):
         ind_sorted = np.argsort(proxy_ages)
         proxy_values = proxy_values[ind_sorted]
         proxy_ages   = proxy_ages[ind_sorted]
+        #
+        # Update the units:
+        #  - Precipitation: mm/yr -> mm/day
+        units = proxy_ts[i]['paleoData_units']
+        if units == 'mm/yr':
+            proxy_ts[i]['paleoData_units'] = 'mm/day'
+            proxy_values = proxy_values/365.25  #TODO: Consider using a different value than 365.25
+            if 'paleoData_temperature12kUncertainty' in list(proxy_ts[i].keys()): proxy_ts[i]['paleoData_temperature12kUncertainty'] = proxy_ts[i]['paleoData_temperature12kUncertainty']/365.25
+            print('Proxy '+str(i)+': Updating units from mm/yr to mm/day')
+
         #
         # INTERPOLATION
         # To interpolate the proxy data to the base resolution (by default: decadal):
@@ -326,6 +366,9 @@ def process_proxies(proxy_ts,collection_all,options):
         proxy_data['proxytype'].append(proxy_ts[i]['paleoData_proxy'])
         proxy_data['units'].append(proxy_ts[i]['paleoData_units'])
         proxy_data['interp'].append(proxy_ts[i]['paleoData_interpretation'][0]['variable'])
+        if 'direction' in list(proxy_ts[i]['paleoData_interpretation'][0].keys()): interp_direction = proxy_ts[i]['paleoData_interpretation'][0]['direction']
+        else: interp_direction = 'Not given'
+        proxy_data['direction'].append(interp_direction)
         #
         # Convert seasonality to a list of months, with negative values corresponding to the previous year.
         if 'seasonality_array' in list(proxy_ts[i].keys()):
@@ -367,6 +410,7 @@ def process_proxies(proxy_ts,collection_all,options):
         proxy_data['metadata'][i,7] = collection_all[i]
         proxy_data['metadata'][i,8] = proxy_ts[i]['paleoData_units']
         proxy_data['metadata'][i,9] = proxy_ts[i]['paleoData_interpretation'][0]['variable']
+        proxy_data['metadata'][i,10] = interp_direction
         proxy_data['lats'][i] = proxy_lat
         proxy_data['lons'][i] = proxy_lon
         #
