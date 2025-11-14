@@ -2,10 +2,17 @@
 # This script contains the main code of the Holocene data assimilation.
 # Options are set in the config yml file. See README.txt for a more complete
 # explanation of the code and setup.
+# This version of the code has been updated to focus on North America for the
+# North American ecological sensitivity project.
 #    author: Michael Erb
-#    date  : 1/22/2025
+#    date  : 11/6/2025
 #==============================================================================
 
+# Change working directory
+import os
+os.chdir('C:/Users/erbm/Documents/GitHub/Holocene-code/')
+
+# Import libraries
 import sys
 import numpy as np
 import yaml
@@ -18,8 +25,11 @@ import da_load_models
 import da_load_proxies
 import da_psms
 
-
 #TODO: Update any instances of 'tas' to be for other variables.
+#TODO: Reconstruct the variables of interest:
+    # - Temperature: hottest and coldest months
+    # - Preciptiation: wettest and driest seasons
+    # - Or maybe just all months
 
 
 #%% SETTINGS
@@ -73,6 +83,8 @@ if options['reconstruction_type'] == 'relative':
             model_data[var+'_annual'][ind_for_model,:,:] = model_data[var+'_annual'][ind_for_model,:,:] - np.mean(model_data[var+'_annual'][ind_ref,:,:],axis=0)
             model_data[var+'_jja'][ind_for_model,:,:]    = model_data[var+'_jja'][ind_for_model,:,:]    - np.mean(model_data[var+'_jja'][ind_ref,:,:],axis=0)
             model_data[var+'_djf'][ind_for_model,:,:]    = model_data[var+'_djf'][ind_for_model,:,:]    - np.mean(model_data[var+'_djf'][ind_ref,:,:],axis=0)
+            model_data[var+'_jan'][ind_for_model,:,:]    = model_data[var+'_jan'][ind_for_model,:,:]    - np.mean(model_data[var+'_jan'][ind_ref,:,:],axis=0)
+            model_data[var+'_jul'][ind_for_model,:,:]    = model_data[var+'_jul'][ind_for_model,:,:]    - np.mean(model_data[var+'_jul'][ind_ref,:,:],axis=0)
 
 # If requested, alter the proxy uncertainty values.
 if options['change_uncertainty']:
@@ -103,18 +115,21 @@ proxy_estimates_all,_,proxy_data = da_psms.psm_main(model_data,proxy_data,option
 
 
 #%% SET UNCERTAINTIES
+
 """
-# Temperature proxies which are not in units of degC don't have uncertainty values.
-# Here, set this to the standard deviation, as in Hancock et al., in press  #TODO: Update this.
+# Here, set proxies without uncertainty values to the standard deviation, as in Hancock et al., in press
+uncertainty_all = []
 n_proxies = proxy_data['values_binned'].shape[0]
 for i in range(n_proxies):
-    units = proxy_data['units'][i]
-    if units != 'degC':
-        print(i,units,proxy_data['uncertainty'][i])
+    uncertainty = proxy_data['uncertainty'][i]
+    uncertainty_all.append(uncertainty)
+    if np.isnan(uncertainty):
         proxy_std = np.nanstd(proxy_data['values_binned'][i,:])
-        proxy_data['uncertainty'][i] = proxy_std
-"""
+        print(i,uncertainty,proxy_std)
+        #proxy_data['uncertainty'][i] = proxy_std
 
+print(np.nanmean(uncertainty_all))
+"""
 
 #%% SET THINGS UP
 
@@ -400,6 +415,7 @@ print('Saving the reconstruction as '+output_filename)
 
 # Save all data into a netCDF file
 output_dir = options['data_dir']+'results/'
+output_filename = output_filename.replace(':','_').replace('.','_')
 outputfile = netCDF4.Dataset(output_dir+output_filename+'.nc','w')
 outputfile.createDimension('ages',        n_ages)
 outputfile.createDimension('ens',         n_ens)

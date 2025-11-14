@@ -115,7 +115,109 @@ def damup_explore(Xb,HXb,R,y):
 
 
 # Read in a string and a lat and return a set of months
-def interpret_seasonality(seasonality_txt,lat,unknown_option):
+def interpret_seasonality(seasonality_txt,lat,unknown_option,print_summary=False):
+    #
+    # Set up a table for seasonality conversions
+    season_table = {
+        # Annual
+        'annual':  {'nh': ['1 2 3 4 5 6 7 8 9 10 11 12','annual'],  # Start annual
+                    'sh': ['1 2 3 4 5 6 7 8 9 10 11 12','annual']},
+        # NH summer
+        'apr-sep': {'nh': ['4 5 6 7 8 9','summer'],
+                    'sh': ['4 5 6 7 8 9','winter']},
+        'apr-nov': {'nh': ['4 5 6 7 8 9 10 11','summer'],
+                    'sh': ['4 5 6 7 8 9 10 11','winter']},
+        'apr-dec': {'nh': ['4 5 6 7 8 9 10 11 12','summer'],
+                    'sh': ['4 5 6 7 8 9 10 11 12','winter']},
+        'may-jul': {'nh': ['5 6 7','summer'],
+                    'sh': ['5 6 7','winter']},
+        'may-sep': {'nh': ['5 6 7 8 9','summer'],
+                    'sh': ['5 6 7 8 9','winter']},
+        'may-oct': {'nh': ['5 6 7 8 9 10','summer'],
+                    'sh': ['5 6 7 8 9 10','winter']},
+        'may-nov': {'nh': ['5 6 7 8 9 10 11','summer'],
+                    'sh': ['5 6 7 8 9 10 11','winter']},
+        'may-dec': {'nh': ['5 6 7 8 9 10 11 12','summer'],
+                    'sh': ['5 6 7 8 9 10 11 12','winter']},
+        'jun-jul': {'nh': ['6 7','summer'],
+                    'sh': ['6 7','winter']},
+        'jun-aug': {'nh': ['6 7 8','summer'],
+                    'sh': ['6 7 8','winter']},
+        'jun-sep': {'nh': ['6 7 8 9','summer'],
+                    'sh': ['6 7 8 9','winter']},
+        'jun-oct': {'nh': ['6 7 8 9 10','summer'],
+                    'sh': ['6 7 8 9 10','winter']},
+        'jul':     {'nh': ['7','summer'],
+                    'sh': ['7','winter']},
+        'jul-sep': {'nh': ['7 8 9','summer'],
+                    'sh': ['7 8 9','winter']},
+        'jul-oct': {'nh': ['7 8 9 10','summer'],
+                    'sh': ['7 8 9 10','winter']},
+        'jul-dec': {'nh': ['7 8 9 10 11 12','summer'],  #TODO: Is this still summer?
+                    'sh': ['7 8 9 10 11 12','winter']},
+        'aug':     {'nh': ['8','summer'],
+                    'sh': ['8','winter']},
+        'aug-oct': {'nh': ['8 9 10','summer'],
+                    'sh': ['8 9 10','winter']},
+        # NH winter
+        'sep-mar': {'nh': ['-9 -10 -11 -12 1 2 3','winter'],
+                    'sh': ['-9 -10 -11 -12 1 2 3','summer']},
+        'oct-mar': {'nh': ['-10 -11 -12 1 2 3','winter'],
+                    'sh': ['-10 -11 -12 1 2 3','summer']},
+        'oct-apr': {'nh': ['-10 -11 -12 1 2 3 4','winter'],
+                    'sh': ['-10 -11 -12 1 2 3 4','summer']},
+        'dec-feb': {'nh': ['-12 1 2','winter'],
+                    'sh': ['-12 1 2','summer']},
+        'dec-apr': {'nh': ['-12 1 2 3 4','winter'],
+                    'sh': ['-12 1 2 3 4','summer']},
+        'nov-jun': {'nh': ['-11 -12 1 2 3 4 5 6','winter'],
+                    'sh': ['-11 -12 1 2 3 4 5 6','summer']},
+        # NH/SH dependant
+        'summer':         {'nh': ['6 7 8','summer'],
+                           'sh': ['-12 1 2','summer']},
+        'winter':         {'nh': ['-12 1 2','winter'],
+                           'sh': ['6 7 8','winter']},
+        'warmest month':  {'nh': ['7','summer'],
+                           'sh': ['1','summer']},
+        'coldest month':  {'nh': ['1','winter'],
+                           'sh': ['7','winter']}
+        }
+        # Consider adding:
+            # Growing season
+            
+    #
+    # Get the hemisphere
+    if   lat >= 0: hemisphere = 'nh'
+    elif lat < 0:  hemisphere = 'sh'
+    else: hemisphere = np.nan; print(' === ERROR: Proxy latitude can not be interpretted: lat='+str(lat)+' ===')
+    #
+    # Get the seasonality
+    seasonality_keys = list(season_table.keys())
+    if seasonality_txt.lower() in seasonality_keys:
+        seasonality         = season_table[seasonality_txt.lower()][hemisphere][0]
+        seasonality_general = season_table[seasonality_txt.lower()][hemisphere][1]
+    elif unknown_option == 'annual':
+        print(' === ATTENTION! Seasonality text unknown, using annual. Seasonality: '+str(seasonality_txt)+' ===')
+        seasonality = '1 2 3 4 5 6 7 8 9 10 11 12'
+        seasonality_general = 'annual'
+    else:
+        print(' === ATTENTION! Seasonality text unknown, returning as-is. Seasonality: '+str(seasonality_txt)+' ===')
+        seasonality = seasonality_txt
+        seasonality_general = 'unknown'
+    #
+    # If requested, print a summary
+    if print_summary:
+        print_format='%-40s %-40s %-17s %-30s'
+        print(print_format % ('Converting - Original: '+str(seasonality_txt),
+                              'Numbers: '+str(seasonality),
+                              'Lat: '+str(lat)+' '+str(hemisphere),
+                              'seasonGeneral: '+seasonality_general))
+    #
+    return seasonality,seasonality_general
+
+
+# Read in a string and a lat and return a set of months
+def interpret_seasonality_older(seasonality_txt,lat,unknown_option):
     #
     # Terms which are not dependent on latitude
     if   (str(seasonality_txt).lower() == 'annual'):                        seasonality = '1 2 3 4 5 6 7 8 9 10 11 12'

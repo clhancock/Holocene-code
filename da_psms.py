@@ -12,12 +12,12 @@ def psm_main(model_data,proxy_data,options):
     #
     n_proxies = proxy_data['values_binned'].shape[0]
     proxy_estimates_all = np.array([dict() for k in range(n_proxies)])  # HXb
-    i = 210
+    i = 0
     for i in range(n_proxies):
         #
         # Set PSMs requirements
         psm_requirements = {}
-        psm_requirements['calibrated_tas']    = {'interp':['temperature'],'units':['degc']}
+        psm_requirements['calibrated_tas']    = {'interp':['T','t','temperature'],'units':['degc']}
         psm_requirements['calibrated_precip'] = {'interp':['p','precipitation'],'units':['mm/day']}  # Other possible precip units: 'mm/a','mm/yr'
         psm_requirements['rank_based_tas']    = {'interp':['temperature']}
         #psm_requirements['get_p_e']           = {'units':'mm/a','interp':'P-E'}  #TODO: Update this.
@@ -30,6 +30,7 @@ def psm_main(model_data,proxy_data,options):
         #
         # The code will use the first PSM in the list above that meets the requirements
         psm_selected = None
+        psm_type = psms_to_use[0]
         for psm_type in psms_to_use:
             psm_keys = list(psm_requirements[psm_type].keys())
             psm_check = np.full(len(psm_keys),False,dtype=bool)

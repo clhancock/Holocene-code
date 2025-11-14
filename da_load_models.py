@@ -22,6 +22,9 @@ def load_model_data(options):
     # Load the model data
     n_models = len(options['models_for_prior'])
     model_data = {}
+    j = 0; var_name = options['vars_to_reconstruct'][j]
+    i = 0; model = options['models_for_prior'][j]
+    
     for j,var_name in enumerate(options['vars_to_reconstruct']):
         for i,model in enumerate(options['models_for_prior']):
             #
@@ -32,7 +35,7 @@ def load_model_data(options):
             #
             # Check to see if the file exists.  If not, create it.
             filenames_all = glob.glob(model_dir+'*.nc')
-            filenames_all = [filename.split('/')[-1] for filename in filenames_all]
+            filenames_all = [filename.replace('\\','/').split('/')[-1] for filename in filenames_all]
             if model_filename not in filenames_all:
                 print('File '+model_dir+model_filename+' does not exist.  Creating it now.')
                 process_models(model,var_name,options['time_resolution'],options['age_range_model'],model_dir,original_model_dir)
@@ -57,6 +60,8 @@ def load_model_data(options):
             model_individual[var_name+'_annual'] = np.average(model_individual[var_name],axis=1,weights=time_ndays_model_latlon)
             model_individual[var_name+'_jja']    = np.average(model_individual[var_name][:,ind_jja,:,:],axis=1,weights=time_ndays_model_latlon[:,ind_jja,:,:]) #TODO: Check this.
             model_individual[var_name+'_djf']    = np.average(model_individual[var_name][:,ind_djf,:,:],axis=1,weights=time_ndays_model_latlon[:,ind_djf,:,:]) #TODO: Check this.
+            model_individual[var_name+'_jan']    = model_individual[var_name][:,0,:,:] #TODO: Check this.
+            model_individual[var_name+'_jul']    = model_individual[var_name][:,7,:,:] #TODO: Check this.
             #
             # In each model, central values will not be selected within max_resolution/2 of the edges
             n_time = len(model_individual['age'])
