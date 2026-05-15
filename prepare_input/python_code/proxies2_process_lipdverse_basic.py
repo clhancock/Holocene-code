@@ -7,7 +7,6 @@
 import sys
 sys.path.append('C:/Users/erbm/Dropbox/Academia/NAU/Project_EcoClimate_Sensitivity/analysis/utils/')
 import numpy as np
-import lipd
 import pickle
 import utils_ecoclimate as utils
 
@@ -21,7 +20,7 @@ exp_txt  = 'basic'
 print(' ===== STARTING. file: '+file_txt+' =====')
 
 # Load the proxy data
-dir_proxies = 'C:/Users/erbm/Documents/data_paleoclimate/proxies/dropbox/'
+dir_proxies = 'C:/Users/erbm/Documents/data_climate/data_paleoclimate/proxies/dropbox/data_files_python/'
 file_to_open = open(dir_proxies+file_txt+'.pkl','rb')
 all_ts = pickle.load(file_to_open)
 file_to_open.close()
@@ -64,14 +63,12 @@ variablename_all = []
 primaryts_all    = []
 selected_ts2     = []
 for i in range(len(selected_ts1)):
-    try:    interp_record = selected_ts1[i]['paleoData_interpretation'][0]['variable']
-    except: interp_record = 'Not given'
-    try:    variablename_record = selected_ts1[i]['paleoData_variableName']
-    except: variablename_record = 'Not given'
     try:    primaryts = selected_ts1[i]['paleoData_primaryTimeseries']
     except: primaryts = 'Not given'
-    try:    units = selected_ts1[i]['paleoData_units']
-    except: units = 'Not given'
+    try:    variablename_record = selected_ts1[i]['paleoData_variableName']
+    except: variablename_record = 'Not given'
+    try:    interp_record = selected_ts1[i]['paleoData_interpretation'][0]['variable']
+    except: interp_record = 'Not given'
     interp_all.append(interp_record)
     variablename_all.append(variablename_record)
     primaryts_all.append(primaryts)

@@ -15,38 +15,10 @@ def psm_main(model_data,proxy_data,options):
     i = 0
     for i in range(n_proxies):
         #
-        # Set PSMs requirements
-        psm_requirements = {}
-        psm_requirements['calibrated_tas']    = {'interp':['T','t','temperature'],'units':['degc']}
-        psm_requirements['calibrated_precip'] = {'interp':['p','precipitation'],'units':['mm/day']}  # Other possible precip units: 'mm/a','mm/yr'
-        psm_requirements['rank_based_tas']    = {'interp':['temperature']}
-        #psm_requirements['get_p_e']           = {'units':'mm/a','interp':'P-E'}  #TODO: Update this.
-        #
-        # Set the PSMs to use
-        #psms_to_use = ['calibrated_tas','calibrated_precip','rank_based_tas']
-        #psms_to_use = ['calibrated_tas','calibrated_precip']
-        psms_to_use = options['psms_to_use']
-        psm_if_no_match = 'use_nans'
-        #
-        # The code will use the first PSM in the list above that meets the requirements
-        psm_selected = None
-        psm_type = psms_to_use[0]
-        for psm_type in psms_to_use:
-            psm_keys = list(psm_requirements[psm_type].keys())
-            psm_check = np.full(len(psm_keys),False,dtype=bool)
-            for counter,psm_key in enumerate(psm_keys):
-                #psm_check[counter] = (proxy_data[psm_key][i].lower() == psm_requirements[psm_type][psm_key])
-                psm_check[counter] = (proxy_data[psm_key][i].lower() in psm_requirements[psm_type][psm_key])
-            #
-            if psm_check.all() == True: psm_selected = psm_type; break
-        #
-        if psm_selected == None:
-            #print('WARNING: No PSM found. Using PSM:',psm_if_no_match)
-            psm_selected = psm_if_no_match
-        #
+        psm_selected = proxy_data['psm'][i]
         print('Proxy',i,'PSM selected:',psm_selected,'|',proxy_data['archivetype'][i],proxy_data['proxytype'][i],proxy_data['interp'][i],proxy_data['units'][i])
         #
-        # Calculate the model-based proxy estimate depending on the PSM (or variable to compare, it the proxy is already calibrated)
+        # Calculate the model-based proxy estimate depending on the PSM (or variable to compare, if the proxy is already calibrated)
         # Model values are in units of degree C (for tas) and mm/day (for precip)
         if   psm_selected == 'calibrated_tas':    proxy_estimate = get_model_values(model_data,proxy_data,'tas',i)
         elif psm_selected == 'calibrated_precip': proxy_estimate = get_model_values(model_data,proxy_data,'precip',i)
@@ -55,10 +27,11 @@ def psm_main(model_data,proxy_data,options):
             proxy_data['values_binned'][i,:] = proxy_update
             proxy_data['metadata'][i,8] = proxy_data['metadata'][i,8]+'_percentile'
             proxy_data['units'][i] = proxy_data['units'][i]+'_percentile'
-        elif psm_selected == 'use_nans':       proxy_estimate = use_nans(model_data)
-        else:                                  proxy_estimate = use_nans(model_data)
+        elif psm_selected == 'use_nans': proxy_estimate = use_nans(model_data)
+        else:                            proxy_estimate = use_nans(model_data)
         #
         # If the proxy units are mm/a, convert the model-based estimates from mm/day to mm/year
+        #TOOD: Work more on converting units
         if proxy_data['units'][i] == 'mm/a': proxy_estimate = proxy_estimate*365.25  #TODO: Is there a better way to account for leap years in these decadal means?
         #
         # Find all time resolutions in the record
@@ -94,7 +67,7 @@ def get_model_values(model_data,proxy_data,var_name,i,verbose=False):
     if np.abs(proxy_lat-lat_model[j_selected])         > 2: print('WARNING: Too large of a lat difference. Proxy lat: '+str(proxy_lat)+', model lat: '+str(lat_model[j_selected]))
     if np.abs(proxy_lon-lon_model_wrapped[i_selected]) > 2: print('WARNING: Too large of a lon difference. Proxy lon: '+str(proxy_lon)+', model lon: '+str(lon_model_wrapped[i_selected]))
     if i_selected == len(lon_model_wrapped)-1: i_selected = 0
-    if verbose: print('Proxy location vs. nearest model gridpoint.  Lat: '+str(proxy_lat)+', '+str(lat_model[j_selected])+'.  Lon: '+str(proxy_lon)+', '+str(lon_model[i_selected]))
+    if verbose: print('Proxy location vs. nearest model gridpoint. Lat: '+str(proxy_lat)+', '+str(lat_model[j_selected])+'. Lon: '+str(proxy_lon)+', '+str(lon_model[i_selected]))
     var_model_location = var_model[:,:,j_selected,i_selected]
     #
     # Compute an average over months according to the proxy seasonality

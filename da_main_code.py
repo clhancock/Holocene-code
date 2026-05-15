@@ -2,10 +2,11 @@
 # This script contains the main code of the Holocene data assimilation.
 # Options are set in the config yml file. See README.txt for a more complete
 # explanation of the code and setup.
+# ---
 # This version of the code has been updated to focus on North America for the
 # North American ecological sensitivity project.
+# ---
 #    author: Michael Erb
-#    date  : 11/6/2025
 #==============================================================================
 
 # Change working directory
@@ -25,11 +26,8 @@ import da_load_models
 import da_load_proxies
 import da_psms
 
-#TODO: Update any instances of 'tas' to be for other variables.
-#TODO: Reconstruct the variables of interest:
-    # - Temperature: hottest and coldest months
-    # - Preciptiation: wettest and driest seasons
-    # - Or maybe just all months
+#TODO: Figure out how to assimilate other proxy types, and update units (and uncertainty) to standard variables.
+#TODO: In the processing script, remove records which don't have units.
 
 
 #%% SETTINGS
@@ -46,48 +44,45 @@ else:                 seed_overwrite = 'None'
 print('Using configuration file: '+config_file)
 with open(config_file,'r') as file: options = yaml.load(file,Loader=yaml.FullLoader)
 
+# If the seed has been overwritten using sys.argv, update it here
+if seed_overwrite != 'None':
+    options['seed_for_prior']        = int(seed_overwrite)
+    options['seed_for_proxy_choice'] = int(seed_overwrite)
+
+# Get the root vars
+vars_to_reconstruct = options['vars_to_reconstruct']
+vars_to_reconstruct_root = [var.split('_')[0] for var in vars_to_reconstruct]
+options['vars_root'] = np.unique(vars_to_reconstruct_root)
+
 print('=== SETTINGS ===')
 for key in options.keys():
     print('%30s: %-15s' % (key,str(options[key])))
 print('=== END SETTINGS ===')
 
 
-#%% LOAD AND PROCESS DATA
-
-# If the seed has been overwritten using sys.argv, update it here
-if seed_overwrite != 'None':
-    options['seed_for_prior']        = int(seed_overwrite)
-    options['seed_for_proxy_choice'] = int(seed_overwrite)
+#%% LOAD AND PROCESS PROXY DATA
 
 # Load the chosen proxy data
 proxy_ts,collection_all = da_load_proxies.load_proxies(options)
-proxy_data = da_load_proxies.process_proxies(proxy_ts,collection_all,options)
 
-# Load the chosen model data
-model_data = da_load_models.load_model_data(options)
+# Print summaries of proxy data
+# (Use this to look for useful proxies and iterate the experimental design)
+#da_utils.print_proxy_metadata(proxy_ts,'archiveType')
+#da_utils.print_proxy_metadata(proxy_ts,'paleoData_proxy')
+#da_utils.print_proxy_metadata(proxy_ts,'interpretation1_variable')
+#da_utils.print_proxy_metadata(proxy_ts,'paleoData_units')
+#da_utils.print_proxy_metadata(proxy_ts,'interpretation1_direction')
 
-# Detrend the model data if selected
-model_data = da_load_models.detrend_model_data(model_data,options)
+# Filter the proxies and set PSMs
+proxy_ts_selected,psms_selected,collection_selected = da_load_proxies.filter_proxies_and_set_psms(proxy_ts,collection_all,options)
 
-# Get some dimensions
-n_models_in_prior = len(options['models_for_prior'])
-n_proxies         = proxy_data['values_binned'].shape[0]
-
-# If the prior is allowed to change through time, remove the mean of the reference period from each model.
-if options['reconstruction_type'] == 'relative':
-    for i in range(n_models_in_prior):
-        ind_for_model = (model_data['number'] == (i+1))
-        ind_ref = (model_data['age'] >= options['reference_period'][0]) & (model_data['age'] < options['reference_period'][1]) & ind_for_model
-        for var in options['vars_to_reconstruct']:
-            model_data[var][ind_for_model,:,:,:]         = model_data[var][ind_for_model,:,:,:]         - np.mean(model_data[var][ind_ref,:,:,:],axis=0)
-            model_data[var+'_annual'][ind_for_model,:,:] = model_data[var+'_annual'][ind_for_model,:,:] - np.mean(model_data[var+'_annual'][ind_ref,:,:],axis=0)
-            model_data[var+'_jja'][ind_for_model,:,:]    = model_data[var+'_jja'][ind_for_model,:,:]    - np.mean(model_data[var+'_jja'][ind_ref,:,:],axis=0)
-            model_data[var+'_djf'][ind_for_model,:,:]    = model_data[var+'_djf'][ind_for_model,:,:]    - np.mean(model_data[var+'_djf'][ind_ref,:,:],axis=0)
-            model_data[var+'_jan'][ind_for_model,:,:]    = model_data[var+'_jan'][ind_for_model,:,:]    - np.mean(model_data[var+'_jan'][ind_ref,:,:],axis=0)
-            model_data[var+'_jul'][ind_for_model,:,:]    = model_data[var+'_jul'][ind_for_model,:,:]    - np.mean(model_data[var+'_jul'][ind_ref,:,:],axis=0)
+# Process the proxy data
+proxy_data = da_load_proxies.process_proxies(proxy_ts_selected,psms_selected,collection_selected,options)
+n_proxies = proxy_data['values_binned'].shape[0]
 
 # If requested, alter the proxy uncertainty values.
 if options['change_uncertainty']:
+    print('Processing proxies: changing uncertainty: '+str(options['change_uncertainty']))
     if options['change_uncertainty'][0:5] == 'mult_':
         uncertainty_multiplier = float(options['change_uncertainty'][5:])
         proxy_data['uncertainty'] = proxy_data['uncertainty']*uncertainty_multiplier
@@ -110,6 +105,29 @@ if options['change_uncertainty']:
             else:
                 proxy_data['uncertainty'][i] = proxy_uncertainties_from_file[index_uncertainty,1].astype(float)
 
+
+#%% LOAD AND PROCESS MODEL DATA
+
+# Load the chosen model data
+model_data = da_load_models.load_model_data(options)
+n_models_in_prior = len(options['models_for_prior'])
+
+# Detrend the model data if selected
+if options['model_processing'] != 'None':
+    print('Processing model: '+str(options['model_processing']))
+    model_data = da_load_models.detrend_model_data(model_data,options)
+
+# If the prior is allowed to change through time, remove the mean of the reference period from each model.
+if options['reconstruction_type'] == 'relative':
+    print('Processing model: relative reconstruction')
+    for i in range(n_models_in_prior):
+        ind_for_model = (model_data['number'] == (i+1))
+        ind_ref = (model_data['age'] >= options['reference_period'][0]) & (model_data['age'] < options['reference_period'][1]) & ind_for_model
+        for var in options['vars_root']:
+            model_data[var][ind_for_model,:,:,:] = model_data[var][ind_for_model,:,:,:] - np.mean(model_data[var][ind_ref,:,:,:],axis=0)
+        for var in options['vars_to_reconstruct']:
+            model_data[var][ind_for_model,:,:]   = model_data[var][ind_for_model,:,:]   - np.mean(model_data[var][ind_ref,:,:],axis=0)
+
 # Use PSMs to get model-based proxy estimates
 proxy_estimates_all,_,proxy_data = da_psms.psm_main(model_data,proxy_data,options)
 
@@ -130,6 +148,86 @@ for i in range(n_proxies):
 
 print(np.nanmean(uncertainty_all))
 """
+
+
+#%% FIND PROXIES TO ASSIMILATE AND MORE
+
+print(' === FINDING PROXIES TO ASSIMILATE BASED ON CHOSEN OPTIONS ===')
+
+# Find proxies with data in selected age range(s)
+proxy_ind_with_valid_values = np.isfinite(np.nanmean(proxy_data['values_binned'],axis=1))
+print(' - Number of records with valid values for the chosen experiment: '+str(sum(proxy_ind_with_valid_values)))
+
+# Find the proxies with uncertainty values
+proxy_ind_with_uncertainty = np.isfinite(proxy_data['uncertainty'])
+if len(proxy_ind_with_uncertainty.shape) == 2: proxy_ind_with_uncertainty = proxy_ind_with_uncertainty.any(axis=1)
+print(' - Number of records with uncertainty values: '+str(sum(proxy_ind_with_uncertainty)))
+
+# If requested, select only proxies with certain seasonalities
+if options['assimilate_selected_seasons'] in ['jja_preferred','djf_preferred']:
+    proxy_ind_of_seasonality = da_utils.find_seasons(proxy_data,options)
+elif options['assimilate_selected_seasons'] != False:
+    proxy_ind_of_seasonality = np.full((n_proxies),False,dtype=bool)
+    ind_seasons = [i for i, seasontype in enumerate(proxy_data['metadata'][:,5]) if seasontype.lower() in options['assimilate_selected_seasons']]
+    proxy_ind_of_seasonality[ind_seasons] = True
+    print(' - Number of records with seasonalities '+str(options['assimilate_selected_seasons'])+': '+str(sum(proxy_ind_of_seasonality)))
+else:
+    proxy_ind_of_seasonality = np.full((n_proxies),True,dtype=bool)
+
+# If requested, select only certain archive types
+if options['assimilate_selected_archives'] != False:
+    proxy_ind_of_archive_type = np.full((n_proxies),False,dtype=bool)
+    ind_archives = [i for i, atype in enumerate(proxy_data['archivetype']) if atype in options['assimilate_selected_archives']]
+    proxy_ind_of_archive_type[ind_archives] = True
+    print(' - Number of records with archive types '+str(options['assimilate_selected_archives'])+': '+str(sum(proxy_ind_of_archive_type)))
+else:
+    proxy_ind_of_archive_type = np.full((n_proxies),True,dtype=bool)
+
+# If requested, select the proxies within the specified region
+if options['assimilate_selected_region'] != False:
+    region_lat_min,region_lat_max,region_lon_min,region_lon_max = options['assimilate_selected_region']
+    proxy_ind_in_region = (proxy_data['lats'] >= region_lat_min) & (proxy_data['lats'] <= region_lat_max) & (proxy_data['lons'] >= region_lon_min) & (proxy_data['lons'] <= region_lon_max)
+    print(' - Number of records in region '+str(options['assimilate_selected_region'])+': '+str(sum(proxy_ind_in_region)))
+else:
+    proxy_ind_in_region = np.full((n_proxies),True,dtype=bool)
+
+# If requested, select the proxies with median resolution within a certain window
+if options['assimilate_selected_resolution'] != False: 
+    proxy_med_res = proxy_data['metadata'][:,6].astype(float)
+    proxy_ind_in_resolution_band = (proxy_med_res >= options['assimilate_selected_resolution'][0]) & (proxy_med_res < options['assimilate_selected_resolution'][1])
+    print(' - Number of records with median resolution in the range '+str(options['assimilate_selected_resolution'])+': '+str(sum(proxy_ind_in_resolution_band)))
+else:
+    proxy_ind_in_resolution_band = np.full((n_proxies),True,dtype=bool)
+
+# Count the selected records so far
+proxy_ind_chosen_criteria = proxy_ind_with_valid_values &\
+                            proxy_ind_with_uncertainty &\
+                            proxy_ind_of_seasonality &\
+                            proxy_ind_of_archive_type &\
+                            proxy_ind_in_region &\
+                            proxy_ind_in_resolution_band
+ind_values_chosen_criteria = np.where(proxy_ind_chosen_criteria)[0]
+n_proxies_meeting_criteria = sum(proxy_ind_chosen_criteria)
+print(' --- Number of records meeting ALL of the above criteria: '+str(n_proxies_meeting_criteria))
+
+# If requested, select the portion of the proxies which are to be assimilated
+if options['percent_to_assimilate'] < 100:
+    print(' - Processing: Choosing only '+str(options['percent_to_assimilate'])+'% of possible proxies')
+    proxy_ind_selected = np.full((n_proxies),False,dtype=bool)
+    np.random.seed(seed=options['seed_for_proxy_choice'])
+    n_proxies_to_choose = int(round(n_proxies_meeting_criteria*(options['percent_to_assimilate']/100)))
+    proxy_ind_random = np.random.choice(n_proxies_meeting_criteria,n_proxies_to_choose,replace=False)
+    proxy_ind_random = np.sort(proxy_ind_random)
+    proxy_ind_selected[ind_values_chosen_criteria[proxy_ind_random]] = True
+else:
+    proxy_ind_selected = proxy_ind_chosen_criteria
+
+print(' --- Final number of selected records: '+str(sum(proxy_ind_selected)))
+
+# Calculate the localization matrix (it may not be used)
+if options['assimate_together'] == False:
+    proxy_localization_all = da_utils.loc_matrix(options,model_data,proxy_data)
+
 
 #%% SET THINGS UP
 
@@ -171,85 +269,6 @@ prior_proxy_ens   = np.zeros((n_ages,n_ens_to_save,n_proxies)); prior_proxy_ens[
 proxies_to_assimilate_all = np.zeros((n_ages,n_proxies));       proxies_to_assimilate_all[:] = np.nan
 
 
-#%% FIND PROXIES TO ASSIMILATE AND MORE
-
-print(' === FINDING PROXIES TO ASSIMILATE BASED ON CHOSEN OPTIONS ===')
-
-# Find proxies with data in selected age range (and reference period, if doing a relative reconstruction)
-proxy_ind_with_valid_values = np.isfinite(np.nanmean(proxy_data['values_binned'],axis=1))
-print(' - Number of records with valid values for the chosen experiment: '+str(sum(proxy_ind_with_valid_values)))
-
-# Find the proxies with uncertainty values
-proxy_ind_with_uncertainty = np.isfinite(proxy_data['uncertainty'])
-if len(proxy_ind_with_uncertainty.shape) == 2: proxy_ind_with_uncertainty = proxy_ind_with_uncertainty.any(axis=1)
-print(' - Number of records with uncertainty values: '+str(sum(proxy_ind_with_uncertainty)))
-
-# If requested, select only proxies with certain seasonalities
-if options['assimilate_selected_seasons'] in ['jja_preferred','djf_preferred']:
-    proxy_ind_of_seasonality = da_utils.find_seasons(proxy_data,options)
-elif options['assimilate_selected_seasons']:
-    proxy_ind_of_seasonality = np.full((n_proxies),False,dtype=bool)
-    ind_seasons = [i for i, seasontype in enumerate(proxy_data['metadata'][:,5]) if seasontype.lower() in options['assimilate_selected_seasons']]
-    proxy_ind_of_seasonality[ind_seasons] = True
-    print(' - Number of records with seasonalities '+str(options['assimilate_selected_seasons'])+': '+str(sum(proxy_ind_of_seasonality)))
-else:
-    proxy_ind_of_seasonality = np.full((n_proxies),True,dtype=bool)
-
-# If requested, select only certain archive types
-if options['assimilate_selected_archives']:
-    proxy_ind_of_archive_type = np.full((n_proxies),False,dtype=bool)
-    ind_archives = [i for i, atype in enumerate(proxy_data['archivetype']) if atype in options['assimilate_selected_archives']]
-    proxy_ind_of_archive_type[ind_archives] = True
-    print(' - Number of records with archive types '+str(options['assimilate_selected_archives'])+': '+str(sum(proxy_ind_of_archive_type)))
-else:
-    proxy_ind_of_archive_type = np.full((n_proxies),True,dtype=bool)
-
-# If requested, select the proxies within the specified region
-if options['assimilate_selected_region']:
-    region_lat_min,region_lat_max,region_lon_min,region_lon_max = options['assimilate_selected_region']
-    proxy_ind_in_region = (proxy_data['lats'] >= region_lat_min) & (proxy_data['lats'] <= region_lat_max) & (proxy_data['lons'] >= region_lon_min) & (proxy_data['lons'] <= region_lon_max)
-    print(' - Number of records in region '+str(options['assimilate_selected_region'])+': '+str(sum(proxy_ind_in_region)))
-else:
-    proxy_ind_in_region = np.full((n_proxies),True,dtype=bool)
-
-# If requested, select the proxies with median resolution within a certain window
-if options['assimilate_selected_resolution']: 
-    proxy_med_res = proxy_data['metadata'][:,6].astype(float)
-    proxy_ind_in_resolution_band = (proxy_med_res >= options['assimilate_selected_resolution'][0]) & (proxy_med_res < options['assimilate_selected_resolution'][1])
-    print(' - Number of records with median resolution in the range '+str(options['assimilate_selected_resolution'])+': '+str(sum(proxy_ind_in_resolution_band)))
-else:
-    proxy_ind_in_resolution_band = np.full((n_proxies),True,dtype=bool)
-
-# Count the selected records so far
-proxy_ind_chosen_criteria = proxy_ind_with_valid_values &\
-                            proxy_ind_with_uncertainty &\
-                            proxy_ind_of_seasonality &\
-                            proxy_ind_of_archive_type &\
-                            proxy_ind_in_region &\
-                            proxy_ind_in_resolution_band
-ind_values_chosen_criteria = np.where(proxy_ind_chosen_criteria)[0]
-n_proxies_meeting_criteria = sum(proxy_ind_chosen_criteria)
-print(' --- Number of records meeting ALL of the above criteria: '+str(n_proxies_meeting_criteria))
-
-# If requested, select the portion of the proxies which are to be assimilated
-if options['percent_to_assimilate'] < 100:
-    print(' - Processing: Choosing only '+str(options['percent_to_assimilate'])+'% of possible proxies')
-    proxy_ind_selected = np.full((n_proxies),False,dtype=bool)
-    np.random.seed(seed=options['seed_for_proxy_choice'])
-    n_proxies_to_choose = int(round(n_proxies_meeting_criteria*(options['percent_to_assimilate']/100)))
-    proxy_ind_random = np.random.choice(n_proxies_meeting_criteria,n_proxies_to_choose,replace=False)
-    proxy_ind_random = np.sort(proxy_ind_random)
-    proxy_ind_selected[ind_values_chosen_criteria[proxy_ind_random]] = True
-else:
-    proxy_ind_selected = proxy_ind_chosen_criteria
-
-print(' --- Final number of selected records: '+str(sum(proxy_ind_selected)))
-
-# Calculate the localization matrix (it may not be used)
-if options['assimate_together'] == False:
-    proxy_localization_all = da_utils.loc_matrix(options,model_data,proxy_data)
-
-
 #%% DO DATA ASSIMILATION
 
 # Loop through every age, doing the data assimilation with a time-varying prior
@@ -273,12 +292,10 @@ for age_counter,age in enumerate(proxy_data['age_centers']):
     model_number_for_prior = model_data['number'][indices_for_prior]
     if len(indices_for_prior) != n_ens_possible: print(' !!! Warning: number of prior ages selected does not match n_ens.  Age='+str(age))
     #
-    # Select the season to reconstruct in the prior
-    season_txt = options['season_to_reconstruct']
-    #
     # Get the prior values for the variables to reconstruct
+    j=0; var_name=options['vars_to_reconstruct'][j]
     for j,var_name in enumerate(options['vars_to_reconstruct']):
-        var_season_for_prior = model_data[var_name+'_'+season_txt][indices_for_prior,:,:][:,None,:,:]
+        var_season_for_prior = model_data[var_name][indices_for_prior,:,:][:,None,:,:]
         if j == 0: vars_season_for_prior_all = var_season_for_prior
         else:      vars_season_for_prior_all = np.concatenate((vars_season_for_prior_all,var_season_for_prior),axis=1)
     #
@@ -294,7 +311,7 @@ for age_counter,age in enumerate(proxy_data['age_centers']):
     model_estimates_for_age   = model_estimates_for_age[ind_to_use,:]
     model_number_for_prior    = model_number_for_prior[ind_to_use]
     #
-    # For a relative reconstruction, remove the means of each model seperately
+    # For a prior_mean_always_0 reconstruction, remove the means of each model seperately
     if ((options['reconstruction_type'] == 'relative') and (options['prior_mean_always_0'] == True)):
         for i in range(n_models_in_prior):
             ind_for_model = np.where(model_number_for_prior == (i+1))[0]
@@ -410,12 +427,13 @@ for key,value in options.items():
 time_str = str(datetime.datetime.now()).replace(' ','_')
 if seed_overwrite == 'None': extra_txt = ''
 else:                        extra_txt = '_iter_'+str(int(seed_overwrite)).zfill(2)
-output_filename = 'holocene_recon_'+time_str+'_'+season_txt+'_'+str(options['exp_name'])+extra_txt
-print('Saving the reconstruction as '+output_filename)
+output_filename = 'holocene_recon_'+time_str+'_'+str(options['exp_name'])+extra_txt
+output_filename = output_filename.replace(':','_').replace('.','_')
+output_dir = options['data_dir']+'results/'
+print('Saving the reconstruction as:')
+print('  '+output_dir+output_filename+'.nc')
 
 # Save all data into a netCDF file
-output_dir = options['data_dir']+'results/'
-output_filename = output_filename.replace(':','_').replace('.','_')
 outputfile = netCDF4.Dataset(output_dir+output_filename+'.nc','w')
 outputfile.createDimension('ages',        n_ages)
 outputfile.createDimension('ens',         n_ens)
@@ -483,3 +501,55 @@ endtime_total = time.time()  # End timer
 print('Total time: '+str('%1.2f' % ((endtime_total-starttime_total)/60))+' minutes')
 print(' === Reconstruction complete ===')
 
+
+#%% FORMAT DATA
+
+#TODO: Consider using this code instead of the code above.
+
+"""
+import xarray as xr
+
+# Create new array
+data_xarray_output = xr.Dataset(
+    {
+        'proxyprior_mean':   (['ages','proxy'],                prior_proxy_means.astype("float32"),                             {'units':'proxy dependent'}),
+        'proxyprior_ens':    (['ages','ens_selected','proxy'], prior_proxy_ens.astype("float32"),                               {'units':'proxy dependent'}),
+        'proxyrecon_mean':   (['ages','proxy'],                recon_mean_proxies.astype("float32"),                            {'units':'proxy dependent'}),
+        'proxyrecon_ens':    (['ages','ens_selected','proxy'], recon_ens_proxies.astype("float32"),                             {'units':'proxy dependent'}),
+        'proxy_values':      (['ages','proxy'],                np.transpose(proxy_data['values_binned']).astype("float32"),     {'units':'proxy dependent'}),
+        'proxy_resolutions': (['ages','proxy'],                np.transpose(proxy_data['resolution_binned']).astype("float32"), {'units':'multiple of timestep'}),
+        'proxy_metadata':    (['proxy','metadata'],            proxy_data['metadata'].astype(str)),
+        'options':           (['exp_options'],                 np.array(options_list).astype(str)),
+        'proxies_selected':  (['proxy'],                       proxy_ind_selected.astype(int),        {'units':'Logical'}),
+        'proxies_assimilated': (['ages','proxy'],              proxies_to_assimilate_all.astype(int), {'units':'Logical'}),
+    },
+    coords={
+        'ages':        (['ages'],        proxy_data['age_centers'],{'units':'yr BP'}),
+        'ens':         (['ens'],         np.arange(n_ens),         {'description':'ensemble members'}),
+        'ens_selected':(['ens_selected'],ind_to_save,              {'description':'selected ensemble members'}),
+        'lat':         (['lat'],         model_data['lat'],        {'units':'degrees_north'}),
+        'lon':         (['lon'],         model_data['lon'],        {'units':'degrees_east'}),
+    },
+    attrs={
+        'dataset_name':'Holocene Reconstruction',
+    },
+)
+
+# Add additional variables
+for i,var_name in enumerate(options['vars_to_reconstruct']):
+    data_xarray_output['recon_'+var_name+'_mean']        = (['ages','lat','lon'],               recon_mean_grid[:,i,:,:].astype("float32"), {'units':'degC or mm/day'})
+    data_xarray_output['recon_'+var_name+'_ens']         = (['ages','ens_selected','lat','lon'],recon_ens_grid[:,:,i,:,:].astype("float32"),{'units':'degC or mm/day'})
+    data_xarray_output['recon_'+var_name+'_global_mean'] = (['ages','ens'],                     recon_global_all[:,:,i].astype("float32"),  {'units':'degC or mm/day'})
+    data_xarray_output['recon_'+var_name+'_nh_mean']     = (['ages','ens'],                     recon_nh_all[:,:,i].astype("float32"),      {'units':'degC or mm/day'})
+    data_xarray_output['recon_'+var_name+'_sh_mean']     = (['ages','ens'],                     recon_sh_all[:,:,i].astype("float32"),      {'units':'degC or mm/day'})
+    data_xarray_output['prior_'+var_name+'_mean']        = (['ages','lat','lon'],               prior_mean_grid[:,i,:,:].astype("float32"), {'units':'degC or mm/day'})
+    data_xarray_output['prior_'+var_name+'_ens']         = (['ages','ens_selected','lat','lon'],prior_ens_grid[:,:,i,:,:].astype("float32"),{'units':'degC or mm/day'})
+    data_xarray_output['prior_'+var_name+'_global_mean'] = (['ages','ens'],                     prior_global_all[:,:,i].astype("float32"),  {'units':'degC or mm/day'})
+
+# Add uncertainty values, which are sometimes one or two dimensions
+if   len(proxy_data['uncertainty'].shape) == 1: data_xarray_output['uncertainty'] = (['proxy'],       proxy_data['uncertainty'].astype("float32"),{'units':'proxy dependent'})
+elif len(proxy_data['uncertainty'].shape) == 2: data_xarray_output['uncertainty'] = (['proxy','ages'],proxy_data['uncertainty'].astype("float32"),{'units':'proxy dependent'})
+
+# Save the output
+data_xarray_output.to_netcdf(output_dir+output_filename+'.nc')
+"""

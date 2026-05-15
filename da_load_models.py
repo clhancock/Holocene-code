@@ -2,7 +2,6 @@
 # Functions for loading and processing model data for the data assimilation
 # project.
 #    author: Michael P. Erb
-#    date  : 3/16/2022
 #==============================================================================
 
 import numpy as np
@@ -24,8 +23,8 @@ def load_model_data(options):
     model_data = {}
     j = 0; var_name = options['vars_to_reconstruct'][j]
     i = 0; model = options['models_for_prior'][j]
-    
-    for j,var_name in enumerate(options['vars_to_reconstruct']):
+    #
+    for j,var_name in enumerate(options['vars_root']):
         for i,model in enumerate(options['models_for_prior']):
             #
             print('Loading variable '+var_name+' for model '+str(i+1)+'/'+str(n_models)+': '+model)
@@ -58,10 +57,11 @@ def load_model_data(options):
             ind_djf = [11,0,1]
             time_ndays_model_latlon = np.repeat(np.repeat(model_individual['time_ndays'][:,:,None,None],n_lat,axis=2),n_lon,axis=3)
             model_individual[var_name+'_annual'] = np.average(model_individual[var_name],axis=1,weights=time_ndays_model_latlon)
-            model_individual[var_name+'_jja']    = np.average(model_individual[var_name][:,ind_jja,:,:],axis=1,weights=time_ndays_model_latlon[:,ind_jja,:,:]) #TODO: Check this.
-            model_individual[var_name+'_djf']    = np.average(model_individual[var_name][:,ind_djf,:,:],axis=1,weights=time_ndays_model_latlon[:,ind_djf,:,:]) #TODO: Check this.
-            model_individual[var_name+'_jan']    = model_individual[var_name][:,0,:,:] #TODO: Check this.
-            model_individual[var_name+'_jul']    = model_individual[var_name][:,7,:,:] #TODO: Check this.
+            model_individual[var_name+'_jja']    = np.average(model_individual[var_name][:,ind_jja,:,:],axis=1,weights=time_ndays_model_latlon[:,ind_jja,:,:])
+            model_individual[var_name+'_djf']    = np.average(model_individual[var_name][:,ind_djf,:,:],axis=1,weights=time_ndays_model_latlon[:,ind_djf,:,:])
+            for ind_month in range(12):
+                month_txt = str(ind_month+1).zfill(2)
+                model_individual[var_name+'_month_'+month_txt] = model_individual[var_name][:,ind_month,:,:]
             #
             # In each model, central values will not be selected within max_resolution/2 of the edges
             n_time = len(model_individual['age'])

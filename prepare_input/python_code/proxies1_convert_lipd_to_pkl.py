@@ -14,15 +14,17 @@ save_new_proxy_file = True
 #%% LOAD DATA
 
 # Load the proxy data
-dir_proxies = 'C:/Users/erbm/Documents/data_paleoclimate/proxies/dropbox/'
-proxies_all = lipd.readLipd(dir_proxies+'database/')
+dir_proxies = 'C:/Users/erbm/Documents/data_climate/data_paleoclimate/proxies/dropbox/'
+#proxies_all = lipd.readLipd(dir_proxies+'database/')
+#proxies_all = lipd.readLipd(dir_proxies+'sample_100/')
+proxies_all = lipd.readLipd(dir_proxies+'sample_1/')
 
 
 #%% EXTRACT TIME SERIES
 
 # Extract the time series
 all_ts = lipd.extractTs(proxies_all)
-
+#print(all_ts[0]['paleoData_TSid'])
 
 #%% SAVE DATA
 

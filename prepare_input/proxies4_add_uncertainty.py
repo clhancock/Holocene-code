@@ -17,7 +17,7 @@ save_new_proxy_file = True
 
 #%% LOAD DATA
 
-dir_proxies = 'C:/Users/erbm/Documents/data_paleoclimate/proxies/dropbox/'
+dir_proxies = 'C:/Users/erbm/Documents/data_climate/data_paleoclimate/proxies/dropbox/'
 file_txt = 'all_ts_dropbox_20251008_basic_temp_precip_filtered'
 
 # Load the proxy data

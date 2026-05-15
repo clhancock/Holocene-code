@@ -180,7 +180,9 @@ def interpret_seasonality(seasonality_txt,lat,unknown_option,print_summary=False
         'warmest month':  {'nh': ['7','summer'],
                            'sh': ['1','summer']},
         'coldest month':  {'nh': ['1','winter'],
-                           'sh': ['7','winter']}
+                           'sh': ['7','winter']},
+        'spr-sum':        {'nh': ['3 4 5 6 7 8','summer'],
+                           'sh': ['-9 -10 -11 -12 1 2','summer']}  #TODO: Improve this?
         }
         # Consider adding:
             # Growing season
@@ -561,3 +563,42 @@ def loc_matrix(options,model_data,proxy_data):
     #
     return proxy_localization_all
 
+# Print a sorted list of the variable
+def print_proxy_metadata(proxy_ts,variable_txt,count_min=1,print_format='%35s %5s'):
+    #
+    # Get metadata values from the proxy data
+    n_proxies = len(proxy_ts)
+    variable_all = []
+    for i in range(n_proxies):
+        try:    variable_proxy = proxy_ts[i][variable_txt]
+        except: variable_proxy = ["Not given"]
+        if len(variable_proxy) == 1: variable_proxy = str(variable_proxy[0])
+        else:                        variable_proxy = str(variable_proxy)
+        variable_all.append(variable_proxy)
+    #
+    # Count the number of each name
+    name_words,name_counts = np.unique(variable_all,return_counts=True)
+    count_sort_ind = np.argsort(-name_counts)
+    name_words_sorted  = name_words[count_sort_ind]
+    name_counts_sorted = name_counts[count_sort_ind]
+    #
+    # Print the counts
+    print('\n'+variable_txt)
+    for i in range(len(name_counts_sorted)):
+        output_txt = print_format % (name_words_sorted[i],name_counts_sorted[i])
+        if name_counts_sorted[i] >= count_min: print(output_txt)
+
+# Print a sorted list of the variable
+def print_sorted_list(variable_all,title_txt,count_min=1,print_format='%55s %5s'):
+    #
+    # Count the number of each name
+    name_words,name_counts = np.unique(variable_all,return_counts=True)
+    count_sort_ind = np.argsort(-name_counts)
+    name_words_sorted  = name_words[count_sort_ind]
+    name_counts_sorted = name_counts[count_sort_ind]
+    #
+    # Print the counts
+    print('\n'+title_txt)
+    for i in range(len(name_counts_sorted)):
+        output_txt = print_format % (name_words_sorted[i],name_counts_sorted[i])
+        if name_counts_sorted[i] >= count_min: print(output_txt)
