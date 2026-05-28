@@ -21,7 +21,7 @@ def load_model_data(options):
     # Load the model data
     n_models = len(options['models_for_prior'])
     model_data = {}
-    j = 0; var_name = options['vars_to_reconstruct'][j]
+    j = 0; var_name = options['vars_root'][j]
     i = 0; model = options['models_for_prior'][j]
     #
     for j,var_name in enumerate(options['vars_root']):
@@ -49,6 +49,13 @@ def load_model_data(options):
             model_individual['time_ndays'] = handle_model['days_per_month_all'].values
             model_individual[var_name]     = handle_model[var_name].values
             handle_model.close()
+            #
+            # Crop model to the selected region
+            j_selected = np.where((model_data['lat'] >= options['model_region'][0]) & (model_data['lat'] <= options['model_region'][1]))[0]
+            i_selected = np.where((model_data['lon'] >= options['model_region'][2]) & (model_data['lon'] <= options['model_region'][3]))[0]
+            model_individual[var_name] = model_individual[var_name][:,:,j_selected,:][:,:,:,i_selected]
+            model_data['lat']          = model_data['lat'][j_selected]
+            model_data['lon']          = model_data['lon'][i_selected]
             #
             # Compute annual, jja, and djf means of the model data
             n_lat = len(model_data['lat'])

@@ -25,14 +25,13 @@ all_ts <- extractTs(proxies_all)
 # MAKE A MAP ===================================================================
 
 # Make a map
-#mapLipd(proxies_all, global = TRUE, size = 2) +
-#  ggtitle("Proxy records from dropbox")
+mapLipd(proxies_all, global = TRUE, size = 2) +
+  ggtitle("Proxy records from dropbox")
 #ggsave(paste0(data_dir,'map_proxies.png'))
 
 # PRINT METADATA ===============================================================
 
 # Print data counts
-var_name <- "archiveType"
 print_counts <- function(selected_ts,var_name) {
   metadata_values <- pullTsVariable(selected_ts,var_name)
   metadata_values_df <- as.data.frame(metadata_values)
@@ -70,7 +69,7 @@ print_counts <- function(selected_ts,var_name) {
 metadata_all <- data.frame(
   tsid        = pullTsVariable(all_ts,"paleoData_TSid"),
   datasetname = pullTsVariable(all_ts,"dataSetName"),
-  primary     = pullTsVariable(all_ts,"paleoData_isPrimary"),  # TODO: Do I use this one or the next
+  primary1    = pullTsVariable(all_ts,"paleoData_isPrimary"),  # TODO: Do I use this one or the next
   primary2    = pullTsVariable(all_ts,"paleoData_primaryTimeseries"),
   variable    = pullTsVariable(all_ts,"paleoData_variableName"),
   lat         = pullTsVariable(all_ts,"geo_latitude"),
@@ -84,16 +83,9 @@ metadata_all <- data.frame(
   has_year    = !sapply(pullTsVariable(all_ts,"year"), is.null)
 )
 
-#metadata_all <- metadata_all %>% 
-#  replace_na(list(primary = 'NA',
-#                  primary2 = 'NA')) %>% 
-#  mutate(primary_primary2 = paste0(primary,'_',primary2))
-
-#metadata_selected <- metadata_all %>% 
-#  filter(interpvar == 'temperature')
-#counts <- metadata_selected %>% 
-#  count(primary_primary2)
-
+# Create a joined field with the primary values, for comparison later
+metadata_all <- metadata_all %>% 
+  mutate(primary1_primary2 = paste0(replace_na(primary1),'_',replace_na(primary2)))
 
 # FILTER DATA 1 ================================================================
 
@@ -107,8 +99,8 @@ ind_selected <- which(
   & (metadata_all$has_age | metadata_all$has_year)
   
   # paleoData_isPrimary is TRUE or NA
-  #& (metadata_all$primary == "TRUE" | is.na(metadata_all$primary))
-  & (metadata_all$primary2 == "TRUE" | is.na(metadata_all$primary2))
+  #& (metadata_all$primary1 == "TRUE" | is.na(metadata_all$primary1))
+  #& (metadata_all$primary2 == "TRUE" | is.na(metadata_all$primary2))
   #& (metadata_all$primary == "TRUE" | metadata_all$primary2 == "TRUE")
 
   # Record is in selected region
@@ -120,7 +112,7 @@ ind_selected <- which(
   # paleoData_proxy is not pollen
   & (metadata_all$proxytype != "pollen" | is.na(metadata_all$proxytype))
   
-  # interpretation1_variable is a temperature or preciptiation variable
+  # interpretation1_variable is a temperature or precipitation variable
   & metadata_all$interpvar %in% c("temperature","effectivePrecipitation","precipitation")
   
   # Remove records that appear to be erroreous
@@ -131,6 +123,10 @@ ind_selected <- which(
 # Get the selected records and metadata
 ts_selected <- all_ts[ind_selected]
 metadata_selected <- metadata_all[ind_selected,]
+
+# Explore the primary values
+counts_primary <- metadata_selected %>% 
+  count(primary1_primary2)
 
 # FILTER DATA 2 ================================================================
 

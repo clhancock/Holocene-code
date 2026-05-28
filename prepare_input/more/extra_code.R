@@ -1,5 +1,15 @@
 
 
+#metadata_all <- metadata_all %>% 
+#  replace_na(list(primary = 'NA',
+#                  primary2 = 'NA')) %>% 
+#  mutate(primary_primary2 = paste0(primary,'_',primary2))
+
+#metadata_selected <- metadata_all %>% 
+#  filter(interpvar == 'temperature')
+#counts <- metadata_selected %>% 
+#  count(primary_primary2)
+
 
 
 
