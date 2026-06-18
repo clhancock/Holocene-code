@@ -1,7 +1,6 @@
 #==============================================================================
-# Functions for loading and processing model data for the data assimilation
-# project.
-#    author: Michael P. Erb
+# Functions for loading and processing model data.
+#    author: Michael Erb
 #==============================================================================
 
 import numpy as np

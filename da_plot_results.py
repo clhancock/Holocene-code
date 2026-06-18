@@ -13,7 +13,7 @@ import cartopy.feature as cfeature
 plt.style.use('ggplot')
 
 # Make a map of the current state of the reconstruction
-def make_map(var_toplot,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,stage,bounds=5,save_instead_of_plot=False):
+def make_map(var_toplot,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,stage,exp_name_full,bounds=5,save_instead_of_plot=False):
     #
     # Make a map
     plt.figure(figsize=(10,12))
@@ -34,7 +34,7 @@ def make_map(var_toplot,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncerta
     ax1.spines['geo'].set_edgecolor('black')
     #
     if save_instead_of_plot:
-        plt.savefig('figures/map_da_age_'+str(int(np.ceil(age))).zfill(5)+'yrBP_proxy_'+str(proxy).zfill(3)+'_'+stage+'.png',dpi=200,format='png',bbox_inches='tight')
+        plt.savefig('figures/map_da_'+exp_name_full+'_age_'+str(int(np.ceil(age))).zfill(5)+'yrBP_proxy_'+str(proxy).zfill(3)+'_'+stage+'.png',dpi=200,format='png',bbox_inches='tight')
         plt.close()
     else:
         plt.show()

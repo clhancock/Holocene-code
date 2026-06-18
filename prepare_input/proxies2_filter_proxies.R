@@ -25,8 +25,8 @@ all_ts <- extractTs(proxies_all)
 # MAKE A MAP ===================================================================
 
 # Make a map
-mapLipd(proxies_all, global = TRUE, size = 2) +
-  ggtitle("Proxy records from dropbox")
+#mapLipd(proxies_all, global = TRUE, size = 2) +
+#  ggtitle("Proxy records from dropbox")
 #ggsave(paste0(data_dir,'map_proxies.png'))
 
 # PRINT METADATA ===============================================================
@@ -69,7 +69,7 @@ print_counts <- function(selected_ts,var_name) {
 metadata_all <- data.frame(
   tsid        = pullTsVariable(all_ts,"paleoData_TSid"),
   datasetname = pullTsVariable(all_ts,"dataSetName"),
-  primary1    = pullTsVariable(all_ts,"paleoData_isPrimary"),  # TODO: Do I use this one or the next
+  primary1    = pullTsVariable(all_ts,"paleoData_isPrimary"),
   primary2    = pullTsVariable(all_ts,"paleoData_primaryTimeseries"),
   variable    = pullTsVariable(all_ts,"paleoData_variableName"),
   lat         = pullTsVariable(all_ts,"geo_latitude"),
@@ -83,11 +83,17 @@ metadata_all <- data.frame(
   has_year    = !sapply(pullTsVariable(all_ts,"year"), is.null)
 )
 
+# NA values disrupt the filtering later. Replace all NA values with "NA"
+metadata_all <- metadata_all %>% 
+  replace(is.na(.), "NA")
+
 # Create a joined field with the primary values, for comparison later
 metadata_all <- metadata_all %>% 
-  mutate(primary1_primary2 = paste0(replace_na(primary1),'_',replace_na(primary2)))
+  mutate(primary1_primary2 = paste0(primary1,'_',primary2))
 
 # FILTER DATA 1 ================================================================
+
+# Note: There are two primary fields. If either are false, do not use them.
 
 # Find records which meet the given criteria
 ind_selected <- which(
@@ -98,19 +104,17 @@ ind_selected <- which(
   # Record has age or year
   & (metadata_all$has_age | metadata_all$has_year)
   
-  # paleoData_isPrimary is TRUE or NA
-  #& (metadata_all$primary1 == "TRUE" | is.na(metadata_all$primary1))
-  #& (metadata_all$primary2 == "TRUE" | is.na(metadata_all$primary2))
-  #& (metadata_all$primary == "TRUE" | metadata_all$primary2 == "TRUE")
-
+  # neither paleoData_isPrimary or paleoData_primaryTimeseries if FALSE
+  & (metadata_all$primary1 != "FALSE" & metadata_all$primary2 != "FALSE")
+  
   # Record is in selected region
   & between(metadata_all$lat,0,85) & between(metadata_all$lon,-180,-10)
   
   # archiveType is not Midden
-  & (metadata_all$archivetype != "Midden" | is.na(metadata_all$archivetype))
+  & (metadata_all$archivetype != "Midden")
   
   # paleoData_proxy is not pollen
-  & (metadata_all$proxytype != "pollen" | is.na(metadata_all$proxytype))
+  & (metadata_all$proxytype != "pollen")
   
   # interpretation1_variable is a temperature or precipitation variable
   & metadata_all$interpvar %in% c("temperature","effectivePrecipitation","precipitation")
@@ -125,8 +129,8 @@ ts_selected <- all_ts[ind_selected]
 metadata_selected <- metadata_all[ind_selected,]
 
 # Explore the primary values
-counts_primary <- metadata_selected %>% 
-  count(primary1_primary2)
+#counts_primary <- metadata_selected %>% 
+#  count(primary1_primary2)
 
 # FILTER DATA 2 ================================================================
 
@@ -173,5 +177,5 @@ metadata_selected <- metadata_selected[ind_selected_step2,]
 # SAVE RECORDS =================================================================
 
 # Save filtered data
-#saveRDS(ts_selected,file=paste0(data_dir,'selected_ts_',data_date,'.rds'))
-#saveRDS(metadata_selected,file=paste0(data_dir,'selected_metadata_',data_date,'.rds'))
+saveRDS(ts_selected,file=paste0(data_dir,'selected_ts_',data_date,'.rds'))
+saveRDS(metadata_selected,file=paste0(data_dir,'selected_metadata_',data_date,'.rds'))
