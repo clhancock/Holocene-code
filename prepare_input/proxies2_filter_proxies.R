@@ -104,7 +104,7 @@ ind_selected <- which(
   # Record has age or year
   & (metadata_all$has_age | metadata_all$has_year)
   
-  # neither paleoData_isPrimary or paleoData_primaryTimeseries if FALSE
+  # neither paleoData_isPrimary or paleoData_primaryTimeseries is FALSE
   & (metadata_all$primary1 != "FALSE" & metadata_all$primary2 != "FALSE")
   
   # Record is in selected region

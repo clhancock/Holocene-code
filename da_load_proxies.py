@@ -48,36 +48,45 @@ def filter_proxies_and_set_psms(proxy_ts,collection_all,options):
     proxy_psms = ["None"]*n_proxies
     #
     # Get some metadata fields from proxies
-    proxy_archivetype = []
-    proxy_interp      = []
-    proxy_units       = []
+    proxy_variable = []
+    proxy_interp   = []
+    proxy_archive  = []
+    proxy_proxy    = []
+    proxy_unit     = []
     for i in range(n_proxies):
-        try:    proxy_archivetype.append(proxy_ts[i]['archiveType'][0])
-        except: proxy_archivetype.append("Not given")
         try:    proxy_interp.append(proxy_ts[i]['interpretation1_variable'][0])
         except: proxy_interp.append("Not given")
-        try:    proxy_units.append(proxy_ts[i]['paleoData_units'][0])
-        except: proxy_units.append("Not given")
+        try:    proxy_variable.append(proxy_ts[i]['paleoData_variableName'][0])
+        except: proxy_variable.append("Not given")
+        try:    proxy_archive.append(proxy_ts[i]['archiveType'][0])
+        except: proxy_archive.append("Not given")
+        try:    proxy_proxy.append(proxy_ts[i]['paleoData_proxy'][0])
+        except: proxy_proxy.append("Not given")
+        try:    proxy_unit.append(proxy_ts[i]['paleoData_units'][0])
+        except: proxy_unit.append("Not given")
     #
     # Find the proxies to keep
     n_combinations = len(options['proxies_to_use'])
     for i in range(n_combinations):
         #
         combination_selected = options['proxies_to_use'][0]
-        chosen_archivetype = combination_selected.split('|')[0].split(',')
-        chosen_interp      = combination_selected.split('|')[1].split(',')
-        chosen_unit        = combination_selected.split('|')[2].split(',')
-        chosen_psm         = combination_selected.split('|')[3]
-        #logical_archivetype = np.array(proxy_archivetype) in chosen_archivetype
-        #logical_interp      = np.array(proxy_interp)      in chosen_interp
-        #logical_unit        = np.array(proxy_units)       in chosen_unit
-        logical_archivetype = np.array([value in chosen_archivetype for value in proxy_archivetype])
-        logical_interp      = np.array([value in chosen_interp      for value in proxy_interp])
-        logical_unit        = np.array([value in chosen_unit        for value in proxy_units])
-        if chosen_archivetype[0] == 'any': logical_archivetype[:] = True
-        if chosen_interp[0]      == 'any': logical_interp[:]      = True
-        if chosen_unit[0]        == 'any': logical_unit[:]        = True
-        logical_selected = logical_archivetype & logical_interp & logical_unit
+        chosen_interp   = combination_selected.split('|')[0].split(',')
+        chosen_variable = combination_selected.split('|')[1].split(',')
+        chosen_archive  = combination_selected.split('|')[2].split(',')
+        chosen_proxy    = combination_selected.split('|')[3].split(',')
+        chosen_unit     = combination_selected.split('|')[4].split(',')
+        chosen_psm      = combination_selected.split('|')[5]
+        logical_interp   = np.array([value in chosen_interp   for value in proxy_interp])
+        logical_variable = np.array([value in chosen_variable for value in proxy_variable])
+        logical_archive  = np.array([value in chosen_archive  for value in proxy_archive])
+        logical_proxy    = np.array([value in chosen_proxy    for value in proxy_proxy])
+        logical_unit     = np.array([value in chosen_unit     for value in proxy_unit])
+        if chosen_interp[0]   == 'any': logical_interp[:]   = True
+        if chosen_variable[0] == 'any': logical_variable[:] = True
+        if chosen_archive[0]  == 'any': logical_archive[:]  = True
+        if chosen_proxy[0]    == 'any': logical_proxy[:]    = True
+        if chosen_unit[0]     == 'any': logical_unit[:]     = True
+        logical_selected = logical_interp & logical_variable & logical_archive & logical_proxy & logical_unit
         ind_selected = np.where(logical_selected)[0]
         print('Proxies in group ('+combination_selected+'):',len(ind_selected))
         #
