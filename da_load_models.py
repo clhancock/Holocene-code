@@ -14,7 +14,8 @@ from scipy import stats
 def load_model_data(options):
     #
     model_dir          = options['data_dir']+'models/processed_model_data/'
-    original_model_dir = options['data_dir']+'models/original_model_data/'
+    #original_model_dir = options['data_dir']+'models/original_model_data/'
+    original_model_dir = 'P:/data_models/'
     age_range_model_txt = str(options['age_range_model'][1]-1)+'-'+str(options['age_range_model'][0])
     #
     # Load the model data
@@ -208,7 +209,8 @@ def process_models(model_name,var_name,time_resolution,age_range,output_dir,orig
     # Set directories
     data_dir = {}
     data_dir['hadcm3'] = original_model_dir+'HadCM3B_transient21k/'
-    data_dir['trace']  = original_model_dir+'TraCE_21ka/'
+    #data_dir['trace']  = original_model_dir+'TraCE_21ka/'
+    data_dir['trace']  = original_model_dir+'trace21k/'
     data_dir['famous'] = original_model_dir+'FAMOUS_glacial_cycle/'
     #
     # Set the names of the variables
