@@ -20,20 +20,21 @@ import yaml
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import da_load_models
+import scipy
 
 plt.style.use('ggplot')
-save_instead_of_plot = True
+save_instead_of_plot = False
 output_dir = "C:/Users/erbm/Documents/GitHub/Holocene-code/sensitivity_experiments/figures/"
 
 
 #%% LOAD AND PROCESS MODEL DATA
 
-time_res = 10
+time_res = 100
 options = {}
 options['data_dir']            = 'C:/Users/erbm/Documents/data_climate/data_assimilation/'
-options['age_range_model']     = [0,22000]
 options['model_region']        = [0,85,180,350]
-options['models_for_prior']    = ['trace']
+#options['models_for_prior']    = ['trace']; options['age_range_model'] = [0,22000]
+options['models_for_prior']    = ['itrace']; options['age_range_model'] = [0,20000]
 options['vars_to_reconstruct'] = ['tas_annual']
 options['vars_root']           = ['tas']
 options['time_resolution']     = time_res
@@ -51,13 +52,10 @@ model_age = model_data['age']
 
 #%% CALCULATIONS
 
-# Get data for the selected period
-ages_bounds = [16900,22000]
-ind_selected = np.where((model_age > ages_bounds[0]) & (model_age <= ages_bounds[1]))[0]
-
 # Set locations to inspect
-loc1_latlon = [25,258]
-loc2_latlon = [40,265]
+ages_bounds = [16900,22000]; loc1_latlon = [25,258]; loc2_latlon = [40,265]  # Strong negative correlations in trace
+#ages_bounds = [11000,16100]; loc1_latlon = [40,240]; loc2_latlon = [45,260]  # Strong positive correlations in trace
+#ages_bounds = [16900,22000]; loc1_latlon = [25,258]; loc2_latlon = [40,265]  # Mild negative correlations in trace
 
 # Get values near the selected locations
 j_selected1 = np.argmin(np.abs(loc1_latlon[0] - model_lat))
@@ -67,6 +65,17 @@ j_selected2 = np.argmin(np.abs(loc2_latlon[0] - model_lat))
 i_selected2 = np.argmin(np.abs(loc2_latlon[1] - model_lon))
 tas_loc2 = model_tas_annual[:,j_selected2,i_selected2]
 
+# Get data for the selected period
+ind_selected = np.where((model_age > ages_bounds[0]) & (model_age <= ages_bounds[1]))[0]
+
+# Detrend both locations
+model_age_selected = model_age[ind_selected]
+tas_loc1_selected = tas_loc1[ind_selected]
+tas_loc2_selected = tas_loc2[ind_selected]
+slope_loc1,intercept_loc1,_,_,_ = scipy.stats.linregress(model_age_selected,tas_loc1_selected)  # slope,intercept,rvalue,pvalue,stderr
+slope_loc2,intercept_loc2,_,_,_ = scipy.stats.linregress(model_age_selected,tas_loc2_selected)
+tas_loc1_detrended = tas_loc1_selected - (model_age_selected * slope_loc1) + intercept_loc1
+tas_loc2_detrended = tas_loc2_selected - (model_age_selected * slope_loc2) + intercept_loc2
 
 
 #%% FIGURES
@@ -98,8 +107,10 @@ ax2_ts.axvspan(ages_bounds[0],ages_bounds[1],color="gray",alpha=0.25)
 ax3_ts.axvspan(ages_bounds[0],ages_bounds[1],color="gray",alpha=0.25)
 
 # Plot time series
-corr = np.corrcoef(tas_loc1[ind_selected],tas_loc2[ind_selected])[0,1]
-ax4_scatter.scatter(tas_loc1[ind_selected],tas_loc2[ind_selected])
+corr = np.corrcoef(tas_loc1_selected,tas_loc2_selected)[0,1]
+ax4_scatter.scatter(tas_loc1_selected,tas_loc2_selected)
+#corr = np.corrcoef(tas_loc1_detrended,tas_loc2_detrended)[0,1]
+#ax4_scatter.scatter(tas_loc1_detrended,tas_loc2_detrended)
 ax4_scatter.set_title("Scatterplot, Corr = "+str("{:.2f}".format(corr)),loc='center',fontsize=14)
 ax4_scatter.set_xlabel("Location 1 (blue)")
 ax4_scatter.set_ylabel("Location 2 (red)")

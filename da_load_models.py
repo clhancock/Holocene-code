@@ -14,16 +14,15 @@ from scipy import stats
 def load_model_data(options):
     #
     model_dir          = options['data_dir']+'models/processed_model_data/'
-    #original_model_dir = options['data_dir']+'models/original_model_data/'
-    original_model_dir = 'P:/data_models/'
+    original_model_dir = options['data_dir']+'models/original_model_data/'
     age_range_model_txt = str(options['age_range_model'][1]-1)+'-'+str(options['age_range_model'][0])
     #
     # Load the model data
     n_models = len(options['models_for_prior'])
     model_data = {}
+    #
     j = 0; var_name = options['vars_root'][j]
     i = 0; model = options['models_for_prior'][j]
-    #
     for j,var_name in enumerate(options['vars_root']):
         for i,model in enumerate(options['models_for_prior']):
             #
@@ -194,12 +193,13 @@ def process_models(model_name,var_name,time_resolution,age_range,output_dir,orig
     #
     """
     # Variables for testing the code
-    model_name         = 'trace_regrid'
+    model_name         = 'itrace'
     var_name           = 'tas'
-    time_resolution    = 10
-    age_range          = [0,12500]
+    time_resolution    = 100
+    age_range          = [0,22000]
     output_dir         = '/projects/pd_lab/data/data_assimilation/models/processed_model_data/'
     original_model_dir = '/projects/pd_lab/data/data_assimilation/models/original_model_data/'
+    return_variables   = False
     """
     #
     # If the model name ends in "_regrid", remove that part of the model name.
@@ -208,13 +208,18 @@ def process_models(model_name,var_name,time_resolution,age_range,output_dir,orig
     #
     # Set directories
     data_dir = {}
+    """
     data_dir['hadcm3'] = original_model_dir+'HadCM3B_transient21k/'
-    #data_dir['trace']  = original_model_dir+'TraCE_21ka/'
-    data_dir['trace']  = original_model_dir+'trace21k/'
+    data_dir['trace']  = original_model_dir+'TraCE_21ka/'
     data_dir['famous'] = original_model_dir+'FAMOUS_glacial_cycle/'
+    """
+    data_dir['trace']  = 'P:/data_models/trace21k/'
+    data_dir['itrace'] = 'C:/Users/erbm/Documents/data_climate/data_paleoclimate/models/itrace_combined/'
     #
     # Set the names of the variables
     var_names = {}
+    var_names['trace']  = {'tas':'TREFHT',         'precip':'special'}
+    var_names['itrace'] = {'tas':'tas',            'precip':'precip'}
     var_names['hadcm3'] = {'tas':'temp_mm_1_5m',   'precip':'precip_mm_srf'}
     var_names['trace']  = {'tas':'TREFHT',         'precip':'special'}
     var_names['famous'] = {'tas':'air_temperature','precip':'precipitation_flux'}
@@ -231,7 +236,40 @@ def process_models(model_name,var_name,time_resolution,age_range,output_dir,orig
     #   - age_model [n_years]
     #   - time_ndays_model_yearsmonths [n_years,12]
     #
-    if model_name == 'hadcm3':
+    if model_name == 'trace':
+        #
+        # Load model data
+        if var_name == 'precip':
+            var_precc,lat_model,lon_model,age_model = load_trace('PRECC',data_dir[model_name])
+            var_precl,_,_,_                         = load_trace('PRECL',data_dir[model_name])
+            var_model_yearsmonths = var_precc + var_precl
+        else:
+            var_model_yearsmonths,lat_model,lon_model,age_model = load_trace(var_txt,data_dir[model_name])
+        #
+        # Set the number of days per month in every year
+        time_ndays_model = np.array([31,28,31,30,31,30,31,31,30,31,30,31])
+        time_ndays_model_yearsmonths = np.repeat(time_ndays_model[None,:],len(age_model),axis=0)
+        #
+        # Convert the model units to tas=C, precip=mm/day
+        if   var_name == 'tas':    var_model_yearsmonths = var_model_yearsmonths - 273.15
+        elif var_name == 'precip': var_model_yearsmonths = var_model_yearsmonths*60*60*24*1000
+        #
+    elif model_name == 'itrace':
+        #
+        # Load model data
+        handle_model = xr.open_dataset(data_dir[model_name]+'itrace.19999-0BP.'+var_txt+'.timeres_10.nc',decode_times=False)
+        var_model_yearsmonths = np.squeeze(handle_model[var_txt].values)
+        lat_model             = handle_model['lat'].values
+        lon_model             = handle_model['lon'].values
+        age_model             = handle_model['age'].values
+        handle_model.close()
+        #age_model = -1*np.floor(np.mean(np.reshape(age_model_monthly,(int(len(age_model_monthly)/12),12)),axis=1))
+        #
+        # Set the number of days per month in every year
+        time_ndays_model = np.array([31,28,31,30,31,30,31,31,30,31,30,31])
+        time_ndays_model_yearsmonths = np.repeat(time_ndays_model[None,:],len(age_model),axis=0)
+        #
+    elif model_name == 'hadcm3':
         #
         # Load model data
         handle_model = xr.open_dataset(data_dir[model_name]+'deglh.vn1_0.'+var_txt+'.monthly.MON.001_s.nc',decode_times=False)
@@ -252,24 +290,6 @@ def process_models(model_name,var_name,time_resolution,age_range,output_dir,orig
         # Convert the model units to tas=C, precip=mm/day
         if   var_name == 'tas':    var_model_yearsmonths = var_model_yearsmonths - 273.15
         elif var_name == 'precip': var_model_yearsmonths = var_model_yearsmonths*60*60*24
-        #
-    elif model_name == 'trace':
-        #
-        # Load model data
-        if var_name == 'precip':
-            var_precc,lat_model,lon_model,age_model = load_trace('PRECC',data_dir[model_name])
-            var_precl,_,_,_                         = load_trace('PRECL',data_dir[model_name])
-            var_model_yearsmonths = var_precc + var_precl
-        else:
-            var_model_yearsmonths,lat_model,lon_model,age_model = load_trace(var_txt,data_dir[model_name])
-        #
-        # Set the number of days per month in every year
-        time_ndays_model = np.array([31,28,31,30,31,30,31,31,30,31,30,31])
-        time_ndays_model_yearsmonths = np.repeat(time_ndays_model[None,:],len(age_model),axis=0)
-        #
-        # Convert the model units to tas=C, precip=mm/day
-        if   var_name == 'tas':    var_model_yearsmonths = var_model_yearsmonths - 273.15
-        elif var_name == 'precip': var_model_yearsmonths = var_model_yearsmonths*60*60*24*1000
         #
     elif model_name == 'famous':
         #
@@ -323,7 +343,7 @@ def process_models(model_name,var_name,time_resolution,age_range,output_dir,orig
     # Print some model details
     print('Variable shape:',var_model_yearsmonths.shape)
     print('Model resolution:',np.mean(lat_model[:-1] - lat_model[1:]),np.mean(lon_model[1:] - lon_model[:-1]))
-    print('Age bounds:',age_model[0],age_model[-1])
+    print('Age bounds:',min(age_model.flatten()),max(age_model.flatten()))
     j0 = np.argmin(np.abs(lat_model-0))
     i0 = np.argmin(np.abs(lon_model-0))
     print('Mean value at '+str(lat_model[j0])+'N, '+str(lon_model[i0])+'E:',np.mean(var_model_yearsmonths[:,:,j0,i0].flatten()))
@@ -338,9 +358,9 @@ def process_models(model_name,var_name,time_resolution,age_range,output_dir,orig
     # Get indices for the selected age range
     age_indices_for_model_means = np.where((age_model >= age_range[0]) & (age_model < age_range[1]))[0]
     #
-    # The famous model is already decadal (it's an accelerated-forcing) simulation, so I define a new variable to account for this.
-    if model_name == 'famous': effective_time_resolution = int(time_resolution/10)
-    else:                      effective_time_resolution = time_resolution
+    # itrace and famous are already decadal (famous is an accelerated-forcing) simulation, so I define a new variable to account for this.
+    if model_name in ['itrace','famous']: effective_time_resolution = int(time_resolution/10)
+    else:                                 effective_time_resolution = time_resolution
     #
     # Check to see if the time-averaging will work
     if (len(age_indices_for_model_means)%effective_time_resolution != 0): print('!!! WARNING: The selected data length is not a multiple of the time resolution. data length='+str(len(age_indices_for_model_means))+', time_resolution='+str(time_resolution))
@@ -352,7 +372,7 @@ def process_models(model_name,var_name,time_resolution,age_range,output_dir,orig
         time_ndays_model_nyearmean      = time_ndays_model_yearsmonths[age_indices_for_model_means,:]
     else:
         n_means = int(len(age_indices_for_model_means)/effective_time_resolution)
-        var_model_yearsmonths_nyearmean = np.mean(np.reshape(var_model_yearsmonths[age_indices_for_model_means,:,:,:],   (n_means,effective_time_resolution,12,len(lat_model),len(lon_model))),axis=1)
+        var_model_yearsmonths_nyearmean = np.nanmean(np.reshape(var_model_yearsmonths[age_indices_for_model_means,:,:,:],   (n_means,effective_time_resolution,12,len(lat_model),len(lon_model))),axis=1)  # Note: nanmean is used here because itrace has two missing decades toward the older end.
         age_model_nyearmean             = np.mean(np.reshape(age_model[age_indices_for_model_means],                     (n_means,effective_time_resolution)),   axis=1)
         time_ndays_model_nyearmean      = np.mean(np.reshape(time_ndays_model_yearsmonths[age_indices_for_model_means,:],(n_means,effective_time_resolution,12)),axis=1)
     #

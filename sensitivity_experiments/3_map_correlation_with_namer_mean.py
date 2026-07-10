@@ -18,18 +18,18 @@ import da_load_models
 import utils_ecoclimate as utils
 
 plt.style.use('ggplot')
-save_instead_of_plot = True
+save_instead_of_plot = False
 output_dir = "C:/Users/erbm/Documents/GitHub/Holocene-code/sensitivity_experiments/figures/"
 
 
 #%% LOAD AND PROCESS MODEL DATA
 
-time_res = 10
+time_res = 100
 options = {}
 options['data_dir']            = 'C:/Users/erbm/Documents/data_climate/data_assimilation/'
-options['age_range_model']     = [0,22000]
 options['model_region']        = [0,85,180,350]
-options['models_for_prior']    = ['trace']
+#options['models_for_prior']    = ['trace']; options['age_range_model'] = [0,22000]
+options['models_for_prior']    = ['itrace']; options['age_range_model'] = [0,20000]
 options['vars_to_reconstruct'] = ['tas_annual']
 options['vars_root']           = ['tas']
 options['time_resolution']     = time_res
@@ -60,7 +60,8 @@ tas_annual_namer  = utils.mean_of_selected(model_tas_annual,model_lat,model_lon,
 
 # A function to plot maps
 age_new,age_old = 0,5100
-def map_correlations(age_new,age_old):
+age_new,age_old = 17000,22000
+def map_correlations(age_new,age_old,file_num):
     #
     # Get data for the selected period
     ind_selected = np.where((model_age > age_new) & (model_age <= age_old))[0]
@@ -103,12 +104,13 @@ def map_correlations(age_new,age_old):
     #
     if save_instead_of_plot:
         age_txt = 'ages_'+str(age_new).zfill(5)+'_'+str(age_old).zfill(5)
-        plt.savefig(output_dir+'map3_res_'+str(time_res)+'_'+age_txt+'.png',dpi=300,format='png',bbox_inches='tight')
+        plt.savefig(output_dir+'map3_'+str(file_num).zfill(2)+'_res_'+str(time_res).zfill(3)+'_'+age_txt+'.png',dpi=300,format='png',bbox_inches='tight')
         plt.close()
     else:
         plt.show()
 
-for age_new in np.arange(0,17001,1000):
-    age_old = age_new + 5100
-    map_correlations(age_new,age_old)
+age_old_all = np.arange(22100,5000,-1000)
+for i,age_old in enumerate(age_old_all):
+    age_new = age_old - 5100
+    map_correlations(age_new,age_old,i)
 

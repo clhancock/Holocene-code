@@ -27,9 +27,18 @@ import da_load_proxies
 import da_psms
 import da_plot_results
 
+# Make maps of proxy-by-proxy updates
+make_maps = False
+
 #TODO: Figure out how to assimilate other proxy types, and update units (and uncertainty) to standard variables.
 #TODO: In the processing script, remove records which don't have units.
 #TODO: Make some sample proxies to explore the impact on the DA.
+
+# Possible ways of dealing with strange correlations:
+# - Find a better prior
+# - Only keep non-glaciated regions in the prior, and only do DA if a location has at least 50% non-glaciated years
+# - Only allow positive correlations
+# - Only allow kalman gain between 0-1
 
 
 #%% SETTINGS
@@ -325,7 +334,7 @@ for age_counter,age in enumerate(proxy_data['age_centers']):
         for i in range(n_models_in_prior):
             ind_for_model = np.where(model_number_for_prior == (i+1))[0]
             model_values_for_prior_all[ind_for_model,:,:,:] = model_values_for_prior_all[ind_for_model,:,:,:] - np.mean(model_values_for_prior_all[ind_for_model,:,:,:],axis=0)
-            model_estimates_for_age[ind_for_model,:]       = model_estimates_for_age[ind_for_model,:]       - np.mean(model_estimates_for_age[ind_for_model,:],axis=0)
+            model_estimates_for_age[ind_for_model,:]        = model_estimates_for_age[ind_for_model,:]        - np.mean(model_estimates_for_age[ind_for_model,:],axis=0)
     #
     # Make the prior (Xb)
     prior = np.reshape(model_values_for_prior_all,(n_ens,n_varslatlon))
@@ -379,15 +388,16 @@ for age_counter,age in enumerate(proxy_data['age_centers']):
                 else: loc = None
                 #
                 # Do data assimilation
-                Xb_updated = da_utils_lmr.enkf_update_array(Xb,proxy_value,model_estimates,proxy_uncertainty,loc=loc,inflate=None)
+                Xb_updated = da_utils_lmr.enkf_update_array(Xb,proxy_value,model_estimates,proxy_uncertainty,options,loc=loc,inflate=None)
                 if np.isnan(Xb).all(): print(' !!! ERROR.  ALL RECONSTRUCTION VALUES SET TO NAN.  Age='+str(age)+', proxy number='+str(proxy)+' !!!')
                 #
                 # If desired, make a map of the current state of the reconstruction for this age
-                if age_counter % 100 == 0:
-                    var_toplot_updated = np.mean(np.reshape(Xb_updated[:n_varslatlon,:], (n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
-                    da_plot_results.make_map(var_toplot_updated,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,'after',exp_name_full,bounds=5,save_instead_of_plot=True)
-                    #var_toplot_start = np.mean(np.reshape(Xb[:n_varslatlon,:], (n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
-                    #da_plot_results.make_map(var_toplot_updated-var_toplot_start,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,'C_diff',exp_name_full,bounds=.25,save_instead_of_plot=True)
+                if make_maps:
+                    if age_counter % 100 == 0:
+                        var_toplot_updated = np.mean(np.reshape(Xb_updated[:n_varslatlon,:], (n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
+                        da_plot_results.make_map(var_toplot_updated,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,'after',exp_name_full,bounds=5,save_instead_of_plot=True)
+                        #var_toplot_start = np.mean(np.reshape(Xb[:n_varslatlon,:], (n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
+                        #da_plot_results.make_map(var_toplot_updated-var_toplot_start,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,'C_diff',exp_name_full,bounds=.25,save_instead_of_plot=True)
                 #
                 Xb = Xb_updated
             #

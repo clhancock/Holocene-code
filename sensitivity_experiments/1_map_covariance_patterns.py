@@ -16,11 +16,11 @@ os.chdir('C:/Users/erbm/Documents/GitHub/Holocene-code/')
 # Import libraries
 import numpy as np
 import matplotlib.pyplot as plt
-import yaml
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import da_load_models
 import da_utils_lmr
+import copy
 
 plt.style.use('ggplot')
 save_instead_of_plot = True
@@ -28,7 +28,7 @@ output_dir = "C:/Users/erbm/Documents/GitHub/Holocene-code/sensitivity_experimen
 
 # Select time period of interest
 age_intervals = np.linspace(0,22000,5)[:-1]
-age_start = age_intervals[3]
+age_start = age_intervals[0]
 ages_bounds = [age_start,age_start+5100]
 #ages_bounds = [0,5100]
 #ages_bounds = [8450,13550]
@@ -37,16 +37,18 @@ ages_bounds = [age_start,age_start+5100]
 
 #%% LOAD AND PROCESS MODEL DATA
 
-time_res = 10
+time_res = 100
 options = {}
 options['data_dir']            = 'C:/Users/erbm/Documents/data_climate/data_assimilation/'
-options['age_range_model']     = [0,22000]
+#options['models_for_prior']    = ['trace']; options['age_range_model'] = [0,22000]
+options['models_for_prior']    = ['itrace']; options['age_range_model'] = [0,20000]
 options['model_region']        = [0,85,180,350]
-options['models_for_prior']    = ['trace']
 options['vars_to_reconstruct'] = ['tas_annual']
 options['vars_root']           = ['tas']
+#options['restrict_kalman']     = [True]
 options['time_resolution']     = time_res
 options['maximum_resolution']  = time_res
+locrad_dist_km = 10000
 
 # Load the chosen model data
 model_data = da_load_models.load_model_data(options)
@@ -70,7 +72,7 @@ prior_coords = np.concatenate((lat_prior[:,None],lon_prior[:,None]),axis=1)
 # Get data for the last 5100 years
 ind_selected = np.where((model_age > ages_bounds[0]) & (model_age <= ages_bounds[1]))[0]
 model_tas_annual = model_tas_annual[ind_selected,:,:]
-model_tas_annual = model_tas_annual - np.mean(model_tas_annual,axis=0)
+model_tas_annual = model_tas_annual - np.nanmean(model_tas_annual,axis=0)
 model_age = model_age[ind_selected]
 
 # Set locations for covariance testing
@@ -105,7 +107,6 @@ for k in range(n_locs):
     locs_all[k,:] = model_lon[i_selected],model_lat[j_selected]
     #
     # Compute a localization radius filter
-    locrad_dist_km = 5000
     locrad = da_utils_lmr.cov_localization(locrad_dist_km,lat_selected,lon_selected,prior_coords)
     locrad_2d = np.reshape(locrad,(n_lat,n_lon))
     locrad_all[k,:,:] = locrad_2d
@@ -114,21 +115,35 @@ for k in range(n_locs):
     model_values_selected = model_tas_annual[:,j_selected,i_selected]
     for j in range(n_lat):
         for i in range(n_lon):
-            correlations_all[k,j,i] = np.corrcoef(model_values_selected,model_tas_annual[:,j,i])[0,1]
-            covariances_all[k,j,i] = np.cov(model_values_selected,model_tas_annual[:,j,i])[0,1]
-            kmat_all[k,j,i] = np.cov(model_values_selected,model_tas_annual[:,j,i])[0,1] / np.var(model_values_selected)
+            corr = np.corrcoef(model_values_selected,model_tas_annual[:,j,i])[0,1]
+            cov  = np.cov(model_values_selected,model_tas_annual[:,j,i])[0,1]
+            var  = np.var(model_values_selected)
+            correlations_all[k,j,i] = corr
+            covariances_all[k,j,i]  = cov
+            kmat_all[k,j,i]         = cov/var
+
+kmat_restricted_all = copy.deepcopy(kmat_all)
+kmat_restricted_all[kmat_restricted_all < 0] = 0
+kmat_restricted_all[kmat_restricted_all > 1] = 1
 
 
 #%% FIGURES - MAPS
 
 # A function to plot maps
+value_txt,k,file_txt = "kalman_gain",1,'sample'
+value_txt,k,file_txt = "kalman_gain_restricted",1,'sample'
+value_txt,k,file_txt = "kalman_times_locrad",1,'sample'
+value_txt,k,file_txt = "kalman_restricted_times_locrad",1,'sample'
 def map_values(value_txt,k,file_txt):
     #
-    if value_txt == "correlation": var_to_plot = correlations_all; value_range = np.arange(-1,1.1,.1)
-    if value_txt == "covariance":  var_to_plot = covariances_all;  value_range = np.arange(-.25,.251,.025)
-    if value_txt == "kalman_gain": var_to_plot = kmat_all;         value_range = np.arange(-2,2.1,.2)
-    if value_txt == "locrad":      var_to_plot = locrad_all;       value_range = np.arange(-1,1.1,.1)
-    if value_txt == "kalman_times_locrad": var_to_plot = kmat_all*locrad_all; value_range = np.arange(-2,2.1,.2)
+    #%%
+    if   value_txt == "correlation":                    var_to_plot = correlations_all;               value_range = np.arange(-1,1.1,.1)
+    elif value_txt == "covariance":                     var_to_plot = covariances_all;                value_range = np.arange(-.25,.251,.025)
+    elif value_txt == "kalman_gain":                    var_to_plot = kmat_all;                       value_range = np.arange(-2,2.1,.2)
+    elif value_txt == "kalman_gain_restricted":         var_to_plot = kmat_restricted_all;            value_range = np.arange(-2,2.1,.2)
+    elif value_txt == "locrad":                         var_to_plot = locrad_all;                     value_range = np.arange(-1,1.1,.1)
+    elif value_txt == "kalman_times_locrad":            var_to_plot = kmat_all*locrad_all;            value_range = np.arange(-2,2.1,.2)
+    elif value_txt == "kalman_restricted_times_locrad": var_to_plot = kmat_restricted_all*locrad_all; value_range = np.arange(-2,2.1,.2)
     #
     # Make a map
     plt.figure(figsize=(10,12))
@@ -149,16 +164,18 @@ def map_values(value_txt,k,file_txt):
     #
     if save_instead_of_plot:
         age_txt = 'ages_'+str(ages_bounds[0])+'_'+str(ages_bounds[1])
-        #plt.savefig(output_dir+'map_'+age_txt+'_var'+file_txt+'_'+value_txt+'_loc_'+str(k).zfill(2)+'.png',dpi=300,format='png',bbox_inches='tight')
-        plt.savefig(output_dir+'map1_res_'+str(time_res)+'_var'+file_txt+'_'+value_txt+'_loc_'+str(k).zfill(2)+'_'+age_txt+'.png',dpi=300,format='png',bbox_inches='tight')
+        plt.savefig(output_dir+'map1_'+options['models_for_prior'][0]+'_res_'+str(time_res)+'_loc_'+str(k).zfill(2)+'_'+age_txt+'_var'+file_txt+'_'+value_txt+'.png',dpi=300,format='png',bbox_inches='tight')
         plt.close()
     else:
         plt.show()
+    #%%
 
 for k in range(n_locs):
     #map_values("correlation",k,'1')
     #map_values("covariance",k,'2')
     #map_values("kalman_gain",k,'3')
+    #map_values("kalman_gain_restricted",k,'3b')
     #map_values("locrad",k,'4')
     map_values("kalman_times_locrad",k,'5')
+    #map_values("kalman_restricted_times_locrad",k,'5b')
 

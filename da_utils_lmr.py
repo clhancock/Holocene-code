@@ -90,7 +90,7 @@ def enkf_update_array_explore(Xb, obvalue, Ye, ob_err, loc=None, inflate=None):
     return Xa,kmat_to_save,cov_over_var,cov_over_var_with_locrad,varye
 
 
-def enkf_update_array(Xb, obvalue, Ye, ob_err, loc=None, inflate=None):
+def enkf_update_array(Xb, obvalue, Ye, ob_err, options, loc=None, inflate=None):
     """
     Function to do the ensemble square-root filter (EnSRF) update
     (ref: Whitaker and Hamill, Mon. Wea. Rev., 2002)
@@ -142,6 +142,11 @@ def enkf_update_array(Xb, obvalue, Ye, ob_err, loc=None, inflate=None):
 
     # numerator of serial Kalman gain (cov(x,Hx))
     kcov = np.dot(Xbp,np.transpose(ye)) / (Nens-1)
+    
+    # If selected, covariances must be between 0 and the variance
+    if options["restrict_kalman"] == True:
+        kcov[kcov < 0] = 0
+        kcov[kcov > varye] = varye
 
     # Option to inflate the covariances by a certain factor
     #if inflate is not None:
