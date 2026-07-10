@@ -12,10 +12,11 @@ library(tidyverse)
 library(rnaturalearth)
 library(rnaturalearthdata)
 
+data_dir <- 'C:/Users/erbm/Documents/data_climate/data_paleoclimate/proxies/dropbox/'
+
 # LOAD PROXIES =================================================================
 
 # Load the proxy data
-data_dir <- 'C:/Users/erbm/Documents/data_climate/data_paleoclimate/proxies/dropbox/'
 data_date <- '2026-02-27'
 ts_selected <- readRDS(paste0(data_dir,'selected_ts_',data_date,'.RData'))
 metadata_selected <- readRDS(paste0(data_dir,'selected_metadata_',data_date,'.RData'))
