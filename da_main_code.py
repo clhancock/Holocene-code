@@ -30,16 +30,6 @@ import da_plot_results
 # Make maps of proxy-by-proxy updates
 make_maps = False
 
-#TODO: Figure out how to assimilate other proxy types, and update units (and uncertainty) to standard variables.
-#TODO: In the processing script, remove records which don't have units.
-#TODO: Make some sample proxies to explore the impact on the DA.
-
-# Possible ways of dealing with strange correlations:
-# - Find a better prior
-# - Only keep non-glaciated regions in the prior, and only do DA if a location has at least 50% non-glaciated years
-# - Only allow positive correlations
-# - Only allow kalman gain between 0-1
-
 
 #%% SETTINGS
 
@@ -51,7 +41,7 @@ seed_overwrite = 'None'
 if   len(sys.argv) > 1: config_file    = sys.argv[1]
 elif len(sys.argv) > 2: seed_overwrite = sys.argv[2]
 
-# Load the configuration options and print them to the screen.
+# Load the configuration options
 print('Using configuration file: '+config_file)
 with open(config_file,'r') as file: options = yaml.load(file,Loader=yaml.FullLoader)
 
@@ -92,6 +82,10 @@ proxy_ts,collection_all = da_load_proxies.load_proxies(options)
 # Filter the proxies and set PSMs
 proxy_ts_selected,psms_selected,collection_selected = da_load_proxies.filter_proxies_and_set_psms(proxy_ts,collection_all,options)
 
+
+# Pick up here.
+
+
 # Process the proxy data
 proxy_data = da_load_proxies.process_proxies(proxy_ts_selected,psms_selected,collection_selected,options)
 n_proxies = proxy_data['values_binned'].shape[0]
@@ -99,41 +93,25 @@ n_proxies = proxy_data['values_binned'].shape[0]
 
 #%% SET UNCERTAINTIES
 
-"""
-# Here, calculate the standard deviation of each proxy, as in Hancock et al., in press
-uncertainties_current = np.zeros((n_proxies)); uncertainties_current[:] = np.nan
-uncertainties_new     = np.zeros((n_proxies)); uncertainties_new[:]     = np.nan
-for i in range(n_proxies):
-    uncertainties_current[i] = proxy_data['uncertainty'][i]
-    uncertainties_new[i] = np.nanstd(proxy_data['values_binned'][i,:])
-    #print(i,uncertainties_current[i],uncertainties_new[i])
-
-print(np.nanmean(uncertainties_current))
-print(np.nanmean(uncertainties_new))
-
-# Checking calculations
-import matplotlib.pyplot as plt
-#ind_valid = np.isfinite(uncertainties_current) & np.isfinite(uncertainties_new)
-plt.scatter(uncertainties_current,uncertainties_new)
-#plt.xlim(21000,0)
-plt.show()
-"""
-
 # If requested, alter the proxy uncertainty values.
 if options['change_uncertainty']:
+    
     if options['change_uncertainty'][0:5] == 'mult_':
         uncertainty_multiplier = float(options['change_uncertainty'][5:])
         proxy_data['uncertainty'] = proxy_data['uncertainty']*uncertainty_multiplier
         print(' --- Processing proxies: uncertainty values MULTIPLIED BY '+str(uncertainty_multiplier)+' ---')
+    
     elif options['change_uncertainty'][0:4] == 'all_':
         prescribed_uncertainty = float(options['change_uncertainty'][4:])
         proxy_data['uncertainty'][:] = prescribed_uncertainty
         print(' --- Processing proxies: uncertainty values SET TO '+str(prescribed_uncertainty)+' ---')
+    
     elif options['change_uncertainty'][0:6] == 'stdev_':
         uncertainty_multiplier = float(options['change_uncertainty'][6:])
         print(' --- Processing proxies: uncertainty values SET TO the standard deviation of each record MULTIPLIED BY '+str(uncertainty_multiplier)+' ---')
         for i in range(n_proxies):
             proxy_data['uncertainty'][i] = np.nanstd(proxy_data['values_binned'][i,:])*uncertainty_multiplier
+    
     else:
         # If using this option, the text file below should contain TSids and MSE for every proxy record
         print(' --- Processing proxies: uncertainty values SET TO values from the following file ---')
@@ -155,11 +133,6 @@ if options['change_uncertainty']:
 model_data = da_load_models.load_model_data(options)
 n_models_in_prior = len(options['models_for_prior'])
 
-# Detrend the model data if selected
-if options['model_processing'] != 'None':
-    print('Processing model: '+str(options['model_processing']))
-    model_data = da_load_models.detrend_model_data(model_data,options)
-
 # If the prior is allowed to change through time, remove the mean of the reference period from each model.
 if options['reconstruction_type'] == 'relative':
     print('Processing model: relative reconstruction')
@@ -173,6 +146,17 @@ if options['reconstruction_type'] == 'relative':
 
 # Use PSMs to get model-based proxy estimates
 proxy_estimates_all,_,proxy_data = da_psms.psm_main(model_data,proxy_data,options)
+
+# After computing proxy values, do more prior processing, if requested
+# This processing will affect spatial modeled covariances, but not the proxy estimates.
+if options['model_processing'] != 'None':
+    print('Processing model: '+str(options['model_processing']))
+    print("WARNING MODEL PROCESSING STILL IN DEVELOPMENT")
+    model_data = da_load_models.detrend_model_data(model_data,options)
+
+
+#TODO: Does the above code work as intended? How do I only apply filtering to covariances?
+#TODO: Perhaps output two variables here: one for means and once for variances.
 
 
 #%% FIND PROXIES TO ASSIMILATE AND MORE

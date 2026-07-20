@@ -9,6 +9,7 @@ from scipy.linalg import sqrtm
 import da_utils_lmr
 import xarray as xr
 import xesmf as xe
+from scipy import signal
 
 # A function to do the data assimilation.  It is based on '2_darecon.jl',
 # originally written by Nathan Steiger.
@@ -602,3 +603,20 @@ def print_sorted_list(variable_all,title_txt,count_min=1,print_format='%55s %5s'
     for i in range(len(name_counts_sorted)):
         output_txt = print_format % (name_words_sorted[i],name_counts_sorted[i])
         if name_counts_sorted[i] >= count_min: print(output_txt)
+
+# A function filter a timeseries using a highpass or lowpass filter
+def filter_ts(data_ts,data_frequency,cutoff_frequency,pass_type,order=5):
+    #
+    # Inputs:
+    # - data_ts:          The data time series
+    # - data_frequency:   The frequency of the data time series.  Example: decadal=0.1 
+    # - cutoff_frequency: The frequency of the desired cutoff.  Example: millennial=0.001 
+    # - pass_type:        The type of filter.  Possibilities: high, low
+    # - order:            This determines the order of the filter.  A higher number will match more variations.  I can adjust this as I see fit.
+    #
+    nyq = 0.5 * data_frequency
+    normal_cutoff = cutoff_frequency / nyq
+    b,a = signal.butter(order,normal_cutoff,btype=pass_type,analog=False)
+    data_ts_filtered = signal.filtfilt(b,a,data_ts)
+    #
+    return data_ts_filtered

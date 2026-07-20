@@ -1,6 +1,6 @@
 #===============================================================================
 # This package loads the proxy database so it can be explored and filtered.
-# Tutorials:
+# Code references:
 #  - https://nickmckay.org/lipdR/
 #  - https://nickmckay.org/GeoChronR/articles/TsFilteringAndMapping.html
 # author: Michael Erb
@@ -12,13 +12,14 @@ library(ggplot2)
 library(tidyverse)
 library(data.table)
 
-data_dir <- 'C:/Users/erbm/Documents/data_climate/data_paleoclimate/proxies/dropbox/'
+proxy_dir <- 'C:/Users/erbm/Documents/data_climate/data_paleoclimate/proxies/dropbox/'
+da_dir    <- 'C:/Users/erbm/Documents/data_climate/data_assimilation/proxies/ecoclimate/'
 
 # LOAD PROXIES =================================================================
 
 # Load the proxy data
-data_date <- '2026-02-27'
-proxies_all <- readRDS(paste0(data_dir,'proxy_ts_',data_date,'.rds'))
+data_date <- '2026-07-16'
+proxies_all <- readRDS(paste0(proxy_dir,'proxy_ts_',data_date,'.rds'))
 
 # Extract the proxy time series
 all_ts <- extractTs(proxies_all)
@@ -28,11 +29,11 @@ all_ts <- extractTs(proxies_all)
 # Make a map
 #mapLipd(proxies_all, global = TRUE, size = 2) +
 #  ggtitle("Proxy records from dropbox")
-#ggsave(paste0(data_dir,'map_proxies.png'))
+#ggsave(paste0(proxy_dir,'map_proxies.png'),width=12,height=6)
 
 # PRINT METADATA ===============================================================
 
-# Print data counts
+# A function to print summaries of the selected metadata field
 print_counts <- function(selected_ts,var_name) {
   metadata_values <- pullTsVariable(selected_ts,var_name)
   metadata_values_df <- as.data.frame(metadata_values)
@@ -61,9 +62,8 @@ print_counts <- function(selected_ts,var_name) {
 #print_counts(all_ts,"interpretation1_variableDetail")  # Note: Alternate version with capital I
 #print_counts(all_ts,"paleoData_temperature12kUncertainty")
 
-# Other potentially useful vars
-# agesPerKyr, maxYear, minYear, geo_latitude,geo_longitude,
-# paleoData_TSid,paleoData_summaryStatistic
+# Other potentially useful vars:
+# agesPerKyr, maxYear, minYear, geo_latitude,geo_longitude, paleoData_TSid, paleoData_summaryStatistic
 
 # CREATE DATAFRAME WITH METADATA ===============================================
 
@@ -96,9 +96,8 @@ metadata_all <- metadata_all %>%
 
 # FILTER DATA 1 ================================================================
 
-#TODO: Update this to read in an excel file with notes about duplicates.
-
 # Set records to remove. Duplicates were identified in another script
+#TODO: Update this to refer to a QC sheet
 records_to_remove <- c(
   "WEB33ffbfb3",  # Appears to be erroneous
   "LPD5627de74",  # Duplicate with WEB4ef1e8b8
@@ -137,10 +136,10 @@ ind_selected <- which(
   # paleoData_proxy is not pollen
   & (metadata_all$proxytype != "pollen")
   
-  # interpretation1_variable is a temperature or precipitation variable
+  # interpretation1_variable is temperature or precipitation
   & metadata_all$interpvar %in% c("temperature","effectivePrecipitation","precipitation")
   
-  # Remove records
+  # Remove some records
   & !metadata_all$tsid %in% records_to_remove
   
 )
@@ -148,10 +147,6 @@ ind_selected <- which(
 # Get the selected records and metadata
 ts_selected <- all_ts[ind_selected]
 metadata_selected <- metadata_all[ind_selected,]
-
-# Explore the primary values
-#counts_primary <- metadata_selected %>% 
-#  count(primary1_primary2)
 
 # FILTER DATA 2 ================================================================
 
@@ -190,118 +185,8 @@ ind_selected_step2 <- which(record_length_all >= 2500)
 ts_selected <- ts_selected[ind_selected_step2]
 metadata_selected <- metadata_selected[ind_selected_step2,]
 
-# ADD UNCERTAINTY VALUES FOR TEMPERATURE =======================================
-
-#TODO: If this is useful, work on it here.
-
-# Reference table from Kaufman et al., 2020, slightly reordered:
-# Archive type      | Proxy type      | Summer | Winter | Annual
-# ------------------|-----------------|--------|--------|--------
-# Marine sediment   | alkenone        |        |        | 1.7
-# Marine sediment   | d18O            |        |        | 2.1
-# Marine sediment   | Mg/Ca           | 1.9    | 1.9    | 1.9
-# Marine sediment   | foraminifera    | 1.3    | 1.4    | 1.3
-# Marine sediment   | dinocyst        | 1.7    | 1.2    | 1.2
-# Marine sediment   | radiolaria      | 1.2    |        | 
-# Multiple archives | TEX86           |        |        | 2.3
-# Multiple archives | diatom          | 1.1    |        | 
-# Multiple archives | pollen          | 2.0    | 3.0    | 2.1
-# Multiple archives | GDGT            |        |        | 2.9
-# Multiple archives | stable isotopes |        |        | default
-# Lake sediment     | various         |        |        | default
-# Lake sediment     | chironomid      | 1.4    |        | 
-# Glacier ice       | various         |        |        | default
-# Midden            | macrofossils    |        |        | default
-# Wood              | tree ring width |        |        | default
-
-# Print current temperature uncertainties
-metadata_temp <- metadata_selected |> 
-  filter(variable == "temperature")
-
-temp_proxy_types <- metadata_temp |> 
-  count(proxytype) |> 
-  arrange(desc(n))
-
-temp_proxy_types <- metadata_temp |> 
-  count(proxytype) |> 
-  arrange(desc(n))
-
-for (type in temp_proxy_types$proxytype) {
-  uncertainties <- metadata_temp |> 
-    filter(proxytype == type) |> 
-    count(temp_uncer)  
-  message("=== ",type," ===")
-  print(uncertainties)
-}
-
-# Print metadata
-print_counts(ts_selected,"paleoData_variableName")
-print_counts(ts_selected,"archiveType")
-print_counts(ts_selected,"paleoData_proxy")
-print_counts(ts_selected,"interpretation1_seasonality")
-print_counts(ts_selected,"paleoData_temperature12kUncertainty")
-
-# Loop through all records
-i <- 1
-n_added <- 0
-for (i in 1:length(ts_selected)) {
-  
-  # Get metadata
-  record_variable <- ts_selected[[i]]$paleoData_variableName
-  record_archive  <- ts_selected[[i]]$archiveType
-  record_proxy    <- ts_selected[[i]]$paleoData_proxy
-  record_season   <- ts_selected[[i]]$interpretation1_seasonality
-  record_uncer    <- ts_selected[[i]]$paleoData_temperature12kUncertainty
-  if (is.null(record_uncer)) {record_uncer = "NA"}
-
-  # If the record isn't temperature or already has uncertainty, go to the next one
-  if (!record_variable == "temperature") {next}
-  if (!record_uncer == "NA") {next}
-
-  # Otherwise, see if it matches any of the criteria above
-    if (record_archive == "MarineSediment") {
-      if ((record_proxy == 'alkenone') & (record_season == 'annual')) {record_uncer <- 1.7; n_added <- n_added + 1}
-      if ((record_proxy == 'd18o') & (record_season == 'annual'))     {record_uncer <- 2.1; n_added <- n_added + 1}
-      if (record_proxy == 'mg/ca')                                    {record_uncer <- 1.9; n_added <- n_added + 1}
-      if (record_proxy == 'foraminifera') {
-        if (record_season == 'summer') {record_uncer <- 1.3; n_added <- n_added + 1}
-        if (record_season == 'winter') {record_uncer <- 1.4; n_added <- n_added + 1}
-        if (record_season == 'annual') {record_uncer <- 1.3; n_added <- n_added + 1}
-      }
-      if (record_proxy == 'dinocyst') {
-        if (record_season == 'summer') {record_uncer <- 1.7; n_added <- n_added + 1}
-        if (record_season == 'winter') {record_uncer <- 1.2; n_added <- n_added + 1}
-        if (record_season == 'annual') {record_uncer <- 1.2; n_added <- n_added + 1}
-      }        
-      if ((record_proxy == 'radiolaria') & (record_season == 'summer')) {record_uncer <- 2.3; n_added <- n_added + 1}
-      if ((record_proxy == 'tex86') & (record_season == 'annual'))      {record_uncer <- 1.2; n_added <- n_added + 1}
-      if ((record_proxy == 'diatom') & (record_season == 'summer'))     {record_uncer <- 1.1; n_added <- n_added + 1}
-      
-        elif record_proxy == 'pollen':
-          if   record_season == 'summer': proxy_ts_temp[i][key_txt] = 2.0; n_added += 1
-        elif record_season == 'winter': proxy_ts_temp[i][key_txt] = 3.0; n_added += 1
-        elif record_season == 'annual': proxy_ts_temp[i][key_txt] = 2.1; n_added += 1
-        elif record_proxy == 'gdgt':
-          if record_season == 'annual': proxy_ts_temp[i][key_txt] = 2.9; n_added += 1
-        elif ts_archive == 'lakesediment':
-          if record_proxy == 'chironomid':
-          if record_season == 'summer': proxy_ts_temp[i][key_txt] = 1.4; n_added += 1
-      
-      print('Uncertainties added to '+str(n_added)+' records!')
-      _,_,_,_ = list_archive_proxy_season_uncertainty(proxy_ts_temp,'AFTER ADDING UNCERTAINTIES - ')
-      
-    
-    
-    
-        
-  }
-}
-
-
-
-
 # SAVE RECORDS =================================================================
 
 # Save filtered data
-saveRDS(ts_selected,file=paste0(data_dir,'selected_ts_',data_date,'.rds'))
-saveRDS(metadata_selected,file=paste0(data_dir,'selected_metadata_',data_date,'.rds'))
+#saveRDS(ts_selected,file=paste0(da_dir,'ecoclimate_selected_ts_',data_date,'.rds'))
+#saveRDS(metadata_selected,file=paste0(da_dir,'ecoclimate_selected_metadata_',data_date,'.rds'))

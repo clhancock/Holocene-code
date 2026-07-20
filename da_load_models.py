@@ -132,21 +132,15 @@ def detrend_model_data(model_data,options):
     n_lat = len(model_data['lat'])
     n_lon = len(model_data['lon'])
     #
-    # If summer or winter is to be reconstructed, pass #TODO: Update this?
-    if options['season_to_reconstruct'] in ['jja','djf']:
-        print('Model processing for JJA or DJF is not set up yet. Returning unchanged.')
-        return model_data
-    #
-    # If desired, do a highpass filter on every location
+    # If desired, do some processing at every location
     if options['model_processing'] == 'linear_global':
         #
         print("Model processing: '"+options['model_processing']+"' - Removing the global mean trend from each grid point")
         for var_name in options['vars_to_reconstruct']:
-            var_global = da_utils.global_mean(model_data[var_name+'_annual'],model_data['lat'],1,2)
+            var_global = da_utils.global_mean(model_data[var_name],model_data['lat'],1,2)
             slope,intercept,_,_,_ = stats.linregress(model_data['age'],var_global)
             var_global_linear = (model_data['age']*slope)+intercept
-            model_data[var_name+'_annual'] = model_data[var_name+'_annual'] - var_global_linear[:,None,None]
-            model_data[var_name]           = model_data[var_name]           - var_global_linear[:,None,None,None]
+            model_data[var_name] = model_data[var_name] - var_global_linear[:,None,None]
         #
     elif options['model_processing'] == 'linear_spatial':
         #
@@ -154,10 +148,18 @@ def detrend_model_data(model_data,options):
         for var_name in options['vars_to_reconstruct']:
             for j in range(n_lat):
                 for i in range(n_lon):
-                    slope,intercept,_,_,_ = stats.linregress(model_data['age'],model_data[var_name+'_annual'][:,j,i])
+                    slope,intercept,_,_,_ = stats.linregress(model_data['age'],model_data[var_name][:,j,i])
                     var_linear = (model_data['age']*slope)+intercept
-                    model_data[var_name+'_annual'][:,j,i] = model_data[var_name+'_annual'][:,j,i] - var_linear
-                    model_data[var_name][:,:,j,i]         = model_data[var_name][:,:,j,i]         - var_linear[:,None]
+                    model_data[var_name][:,j,i] = model_data[var_name][:,j,i] - var_linear
+        #
+    elif options['model_processing'] == 'highpass_spatial':
+        #
+        print("Model processing: '"+options['model_processing']+"' - Keeping only highpass variability at each grid point")
+        for var_name in options['vars_to_reconstruct']:
+            for j in range(n_lat):
+                for i in range(n_lon):
+                    var_location_highpass = da_utils.filter_ts(model_data[var_name][:,j,i],data_frequency = 1/100,cutoff_frequency = 1/1000,pass_type='high',order=5)
+                    model_data[var_name][:,j,i] = var_location_highpass
         #
     elif options['model_processing'] in [None,'None','none']:
         print("Model processing: '"+options['model_processing']+"' - Returning data unchanged.")

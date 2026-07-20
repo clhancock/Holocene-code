@@ -13,6 +13,7 @@
 #==========================================================================================
 
 import numpy as np
+import da_utils
 
 """
 value1_2d = np.reshape(np.squeeze(cov_over_var)[:n_varslatlon],            (n_lat,n_lon))
@@ -89,7 +90,6 @@ def enkf_update_array_explore(Xb, obvalue, Ye, ob_err, loc=None, inflate=None):
     # Return the full state
     return Xa,kmat_to_save,cov_over_var,cov_over_var_with_locrad,varye
 
-
 def enkf_update_array(Xb, obvalue, Ye, ob_err, options, loc=None, inflate=None):
     """
     Function to do the ensemble square-root filter (EnSRF) update
@@ -113,6 +113,13 @@ def enkf_update_array(Xb, obvalue, Ye, ob_err, options, loc=None, inflate=None):
       ob_err: proxy error variance
          loc: localization vector (Nx x 1) [optional]
      inflate: scalar inflation factor [optional]
+    """
+
+    """
+    obvalue = proxy_value
+    Ye      = model_estimates
+    ob_err  = proxy_uncertainty
+    inflate = None
     """
 
     # Get ensemble size from passed array: Xb has dims [state vect.,ens. members]

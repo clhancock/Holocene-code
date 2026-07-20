@@ -12,14 +12,15 @@ library(tidyverse)
 library(rnaturalearth)
 library(rnaturalearthdata)
 
-data_dir <- 'C:/Users/erbm/Documents/data_climate/data_paleoclimate/proxies/dropbox/'
+proxy_dir <- 'C:/Users/erbm/Documents/data_climate/data_paleoclimate/proxies/dropbox/'
+da_dir    <- 'C:/Users/erbm/Documents/data_climate/data_assimilation/proxies/ecoclimate/'
 
 # LOAD PROXIES =================================================================
 
 # Load the proxy data
-data_date <- '2026-02-27'
-ts_selected <- readRDS(paste0(data_dir,'selected_ts_',data_date,'.RData'))
-metadata_selected <- readRDS(paste0(data_dir,'selected_metadata_',data_date,'.RData'))
+data_date <- '2026-07-16'
+ts_selected       <- readRDS(paste0(da_dir,'ecoclimate_selected_ts_',data_date,'.rds'))
+metadata_selected <- readRDS(paste0(da_dir,'ecoclimate_selected_metadata_',data_date,'.rds'))
 
 # Load country borders
 country_borders <- ne_countries(scale="medium",returnclass="sf")
@@ -37,6 +38,9 @@ ggplot() +
   theme_minimal() +
   xlim(-180,-10) + ylim(0,82) +
   ggtitle(paste0('Locations of selected proxies (n=',nrow(metadata_selected),')'))
+
+ggsave(paste0(proxy_dir,'map_proxies_filtered.png'),width=10,height=7)
+
 
 # MAKE A TIME SERIES ===========================================================
 

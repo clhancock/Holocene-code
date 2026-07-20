@@ -16,23 +16,19 @@ def load_proxies(options):
     collection_all = []
     proxy_ts       = []
     #
-    i = 0; proxy_dataset = options['proxy_datasets_to_assimilate'][i]
+    #i = 0; proxy_dataset = options['proxy_datasets_to_assimilate'][i]
     for i,proxy_dataset in enumerate(options['proxy_datasets_to_assimilate']):
-        print('Loading proxy dataset '+str(i+1)+'/'+str(len(options['proxy_datasets_to_assimilate']))+': '+proxy_dataset)
+        #
+        # Load the EcoClimate proxy metadata
+        print('Loading proxy dataset: '+proxy_dataset)
+        try: proxy_ts_ecoclimate = rdata.read_rds(options['data_dir']+'proxies/ecoclimate/'+proxy_dataset+'.rds')
+        except: print('ERROR: invalid proxy dataset: '+proxy_dataset)
+        if options['reconstruction_type'] == 'absolute': proxy_ts_ecoclimate = lipd.filterTs(proxy_ts_ecoclimate,'paleoData_datum == abs')
+        #
+        # Add these proxies to the full proxy dataset
+        proxy_ts = proxy_ts + proxy_ts_ecoclimate
         proxy_dataset_short = proxy_dataset.split('_')[0]
-        if proxy_dataset_short == 'ecoclimate':
-            #
-            # Load the EcoClimate proxy metadata
-            proxy_ts_ecoclimate = rdata.read_rds(options['data_dir']+'proxies/ecoclimate/'+proxy_dataset+'.rds')
-            if options['reconstruction_type'] == 'absolute': proxy_ts_ecoclimate = lipd.filterTs(proxy_ts_ecoclimate,'paleoData_datum == abs')
-            #
-            # Add these proxies to the full proxy dataset
-            proxy_ts = proxy_ts + proxy_ts_ecoclimate
-            collection_all = collection_all + ([proxy_dataset_short] * len(proxy_ts_ecoclimate))
-            #
-        else:
-            #
-            print('ERROR: invalid proxy dataset: '+proxy_dataset)
+        collection_all = collection_all + ([proxy_dataset_short] * len(proxy_ts_ecoclimate))
     #
     return proxy_ts,collection_all
 
@@ -159,19 +155,19 @@ def process_proxies(proxy_ts_selected,psms_selected,collection_selected,options)
         proxy_values = proxy_values[ind_sorted]
         proxy_ages   = proxy_ages[ind_sorted]
         #
-        # Get uncertainty metadata  #TODO: Figure out a better uncertainty estimate
+        # Get uncertainty metadata
         missing_uncertainty_value = np.nan
         try:    proxy_uncertainty = proxy_ts_selected[i]['paleoData_temperature12kUncertainty'][0]
         except: proxy_uncertainty = missing_uncertainty_value; missing_uncertainty += 1
         if proxy_uncertainty == 'NA': proxy_uncertainty = missing_uncertainty_value; missing_uncertainty += 1
         proxy_uncertainty = np.square(float(proxy_uncertainty))  # Proxy uncertainty was give as RMSE, but the code uses MSE
         #
-        # Update the units  #TODO: Work on this
+        # Update the units  #TODO: Work on this (and consider using a different value than 365.25)
         #  - Precipitation: mm/yr -> mm/day
         try:    data_units = proxy_ts_selected[i]['paleoData_units'][0]
         except: data_units = 'Not given'
         if data_units == 'mm/yr':
-            proxy_values      = proxy_values/365.25  #TODO: Consider using a different value than 365.25
+            proxy_values      = proxy_values/365.25
             proxy_uncertainty = proxy_uncertainty/365.25
             data_units = 'mm/day'
             print('Proxy '+str(i)+': Updating units from mm/yr to mm/day')
@@ -307,7 +303,7 @@ def process_proxies(proxy_ts_selected,psms_selected,collection_selected,options)
         proxy_data['metadata'][i,3] = str(proxy_lon)
         proxy_data['metadata'][i,4] = str(proxy_seasonality_array)
         proxy_data['metadata'][i,5] = proxy_seasonality_general
-        proxy_data['metadata'][i,6] = str(np.median(proxy_ages[1:]-proxy_ages[:-1]))  #TODO: Consider calculating this a different way.
+        proxy_data['metadata'][i,6] = str(np.median(proxy_ages[1:]-proxy_ages[:-1]))
         proxy_data['metadata'][i,7] = collection_selected[i]
         proxy_data['metadata'][i,8] = data_units
         proxy_data['metadata'][i,9] = proxy_ts_selected[i]['interpretation1_variable'][0]

@@ -4,6 +4,7 @@ figures/*
 more/*
 prepare_input_models/more/*
 prepare_input_proxies/more/*
+prepare_input_proxies/figures/*
 process_output/*
 sensitivity_experiments/figures/*
 sensitivity_experiments/more/*
