@@ -21,8 +21,7 @@ def load_model_data(options):
     n_models = len(options['models_for_prior'])
     model_data = {}
     #
-    j = 0; var_name = options['vars_root'][j]
-    i = 0; model = options['models_for_prior'][j]
+    j = 0; i = 0; var_name = options['vars_root'][j]; model = options['models_for_prior'][j]
     for j,var_name in enumerate(options['vars_root']):
         for i,model in enumerate(options['models_for_prior']):
             #
@@ -68,6 +67,12 @@ def load_model_data(options):
             for ind_month in range(12):
                 month_txt = str(ind_month+1).zfill(2)
                 model_individual[var_name+'_month_'+month_txt] = model_individual[var_name][:,ind_month,:,:]
+            #
+            # Only keep the variables we want
+            vars_to_keep = ['age','time_ndays']+list(options['vars_root'])+options['vars_to_reconstruct']
+            for key in list(model_individual.keys()):
+                if key not in vars_to_keep:
+                    del model_individual[key]
             #
             # In each model, central values will not be selected within max_resolution/2 of the edges
             n_time = len(model_individual['age'])

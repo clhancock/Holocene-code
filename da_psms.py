@@ -1,11 +1,11 @@
 #==============================================================================
 # Different PSMs for use in the Holocene DA project.
 #    author: Michael P. Erb
-#    date  : 1/14/2025
 #==============================================================================
 
 import numpy as np
 from scipy.stats import rankdata
+import xarray as xr
 
 # Use PSMs to get model-based proxy estimates
 def psm_main(model_data,proxy_data,options):
@@ -20,19 +20,21 @@ def psm_main(model_data,proxy_data,options):
         #
         # Calculate the model-based proxy estimate depending on the PSM (or variable to compare, if the proxy is already calibrated)
         # Model values are in units of degree C (for tas) and mm/day (for precip)
-        if   psm_selected == 'calibrated_tas':    proxy_estimate = get_model_values(model_data,proxy_data,'tas',i)
-        elif psm_selected == 'calibrated_precip': proxy_estimate = get_model_values(model_data,proxy_data,'precip',i)
-        elif psm_selected == 'rank_based_tas':
-            proxy_estimate,proxy_update = rank_based(model_data,proxy_data,'tas',i,options)
+        if   psm_selected == 'calibrated_tas':    proxy_estimate = get_model_values_bilinear(model_data,proxy_data,'tas',i)
+        elif psm_selected == 'calibrated_precip': proxy_estimate = get_model_values_bilinear(model_data,proxy_data,'precip',i)
+        elif psm_selected[:10] == 'rank_based':
+            if   psm_selected == 'rank_based_tas':    proxy_estimate,proxy_update = rank_based(model_data,proxy_data,'tas',i,options)
+            elif psm_selected == 'rank_based_precip': proxy_estimate,proxy_update = rank_based(model_data,proxy_data,'precip',i,options)
             proxy_data['values_binned'][i,:] = proxy_update
-            proxy_data['metadata'][i,8] = proxy_data['metadata'][i,8]+'_percentile'
-            proxy_data['units'][i] = proxy_data['units'][i]+'_percentile'
+            units_new = proxy_data['units'][i]+'_percentile'
+            proxy_data['units'][i]      = units_new
+            proxy_data['metadata'][i,8] = units_new
         elif psm_selected == 'use_nans': proxy_estimate = use_nans(model_data)
         else:                            proxy_estimate = use_nans(model_data)
         #
         # If the proxy units are mm/a, convert the model-based estimates from mm/day to mm/year
-        #TOOD: Work more on converting units
-        if proxy_data['units'][i] == 'mm/a': proxy_estimate = proxy_estimate*365.25  #TODO: Is there a better way to account for leap years in these decadal means?
+        #TODO: Work more on converting units
+        if proxy_data['units'][i] == 'mm/a': proxy_estimate = proxy_estimate*365.25
         #
         # Find all time resolutions in the record
         proxy_res_12ka_unique = np.unique(proxy_data['resolution_binned'][i,:])
@@ -41,15 +43,57 @@ def psm_main(model_data,proxy_data,options):
         # Loop through each time resolution, computing a running mean of the selected duration and save the values to a common variable
         # Note: While convolve may average across different models, those values won't be used (because of the model_data['valid_inds'] variable).
         for res in proxy_res_12ka_unique_sorted:
-            proxy_estimate_nyear_mean = np.convolve(proxy_estimate,np.ones((res,))/res,mode='same')
-            proxy_estimates_all[i][res] = proxy_estimate_nyear_mean
+            if res == 1:
+                proxy_estimates_all[i][res] = proxy_estimate
+            else:
+                proxy_estimate_nyear_mean = np.convolve(proxy_estimate,np.ones((res,))/res,mode='same')
+                proxy_estimates_all[i][res] = proxy_estimate_nyear_mean
     #
     print('Finished preprocessing proxies and making model-based proxy estimates.')
     return proxy_estimates_all,proxy_estimate,proxy_data
 
 
+# A function to get the model values at the same location and seasonality as the proxy, using bilinear interpolation
+def get_model_values_bilinear(model_data,proxy_data,var_name,i,verbose=False):
+    #
+    proxy_lat    = proxy_data['lats'][i]
+    proxy_lon    = proxy_data['lons'][i]
+    proxy_season = proxy_data['seasonality_array'][i]
+    ndays_model  = model_data['time_ndays']
+    proxy_direction = proxy_data['direction'][i]
+   #
+    if (proxy_lat > np.max(model_data['lat'])) | (proxy_lat < np.min(model_data['lat'])): print("WARNING: Proxy lat outside of model bounds:",proxy_lat)
+    if (proxy_lon > np.max(model_data['lon'])) | (proxy_lon < np.min(model_data['lon'])): print("WARNING: Proxy lon outside of model bounds:",proxy_lon)
+    #
+    # Put the model data in a dataframe
+    model_data_df = xr.Dataset(
+        {
+            "var":(["age","month","lat","lon"],model_data[var_name]),
+        },
+        coords = {
+            "age":   (["age"],  model_data['age'],{"units":"yr BP (ref 1950)"}),
+            'month': (["month"],np.arange(1,13),  {"units":"month_number"}),
+            "lat":   (["lat"],  model_data['lat'],{"units":"degrees_north"}),
+            "lon":   (["lon"],  model_data['lon'],{"units":"degrees_east"}),
+        }
+    )
+    #
+    # Use bilinear interpolation to get proxy values at the proxy location
+    model_data_df_location = model_data_df.interp(lat=proxy_lat,lon=proxy_lon)
+    var_model_location = model_data_df_location["var"].values
+    #
+    # Compute an average over months according to the proxy seasonality
+    # Note: months are always taken from the current year, not from the previous year
+    proxy_seasonality_indices = np.abs(proxy_season)-1
+    proxy_seasonality_indices[proxy_seasonality_indices > 11] = proxy_seasonality_indices[proxy_seasonality_indices > 11] - 12
+    var_model_location_season = np.average(var_model_location[:,proxy_seasonality_indices],weights=ndays_model[:,proxy_seasonality_indices],axis=1)
+    if proxy_direction.lower() == 'negative': var_model_location_season = -1*var_model_location_season  # Note: If interpretation direction is not given, it is assumed to be positive.
+    #
+    return var_model_location_season
+
+
 # A function to get the model values at the same location and seasonality as the proxy
-def get_model_values(model_data,proxy_data,var_name,i,verbose=False):
+def get_model_values_nearest(model_data,proxy_data,var_name,i,verbose=False):
     #
     var_model    = model_data[var_name]
     lat_model    = model_data['lat']
@@ -58,6 +102,7 @@ def get_model_values(model_data,proxy_data,var_name,i,verbose=False):
     proxy_lat    = proxy_data['lats'][i]
     proxy_lon    = proxy_data['lons'][i]
     proxy_season = proxy_data['seasonality_array'][i]
+    proxy_direction = proxy_data['direction'][i]
     #
     # Find the model gridpoint closest to the proxy location
     if proxy_lon < 0: proxy_lon = proxy_lon+360
@@ -75,6 +120,7 @@ def get_model_values(model_data,proxy_data,var_name,i,verbose=False):
     proxy_seasonality_indices = np.abs(proxy_season)-1
     proxy_seasonality_indices[proxy_seasonality_indices > 11] = proxy_seasonality_indices[proxy_seasonality_indices > 11] - 12
     var_model_location_season = np.average(var_model_location[:,proxy_seasonality_indices],weights=ndays_model[:,proxy_seasonality_indices],axis=1)
+    if proxy_direction.lower() == 'negative': var_model_location_season = -1*var_model_location_season  # Note: If interpretation direction is not given, it is assumed to be positive.
     #
     return var_model_location_season
 
@@ -83,37 +129,11 @@ def get_model_values(model_data,proxy_data,var_name,i,verbose=False):
 #var_name,verbose = 'tas',False
 def rank_based(model_data,proxy_data,var_name,i,options,verbose=False):
     #
-    var_model    = model_data[var_name]
-    lat_model    = model_data['lat']
-    lon_model    = model_data['lon']
-    ndays_model  = model_data['time_ndays']
     age_model    = model_data['age']
-    proxy_lat    = proxy_data['lats'][i]
-    proxy_lon    = proxy_data['lons'][i]
     proxy_ages   = proxy_data['age_centers']
-    proxy_season = proxy_data['seasonality_array'][i]
     proxy_values = proxy_data['values_binned'][i]
-    proxy_direction = proxy_data['direction'][i]
     #
-    # Find the model gridpoint closest to the proxy location
-    if proxy_lon < 0: proxy_lon = proxy_lon+360
-    lon_model_wrapped = np.append(lon_model,lon_model[0]+360)
-    j_selected = np.argmin(np.abs(lat_model-proxy_lat))
-    i_selected = np.argmin(np.abs(lon_model_wrapped-proxy_lon))
-    if np.abs(proxy_lat-lat_model[j_selected])         > 2: print('WARNING: Too large of a lat difference. Proxy lat: '+str(proxy_lat)+', model lat: '+str(lat_model[j_selected]))
-    if np.abs(proxy_lon-lon_model_wrapped[i_selected]) > 2: print('WARNING: Too large of a lon difference. Proxy lon: '+str(proxy_lon)+', model lon: '+str(lon_model_wrapped[i_selected]))
-    if i_selected == len(lon_model_wrapped)-1: i_selected = 0
-    if verbose: print('Proxy location vs. nearest model gridpoint.  Lat: '+str(proxy_lat)+', '+str(lat_model[j_selected])+'.  Lon: '+str(proxy_lon)+', '+str(lon_model[i_selected]))
-    var_model_location = var_model[:,:,j_selected,i_selected]
-    #
-    # Compute an average over months according to the proxy seasonality
-    # Note: months are always taken from the current year, not from the previous year
-    proxy_seasonality_indices = np.abs(proxy_season)-1
-    proxy_seasonality_indices[proxy_seasonality_indices > 11] = proxy_seasonality_indices[proxy_seasonality_indices > 11] - 12
-    var_model_location_season = np.average(var_model_location[:,proxy_seasonality_indices],weights=ndays_model[:,proxy_seasonality_indices],axis=1)
-    if proxy_direction.lower() == 'negative': var_model_location_season = -1*var_model_location_season  # Note: If interpretation direction is not given, it is assumed to be positive.
-    #
-    #TODO: Conceptually, does this work if the proxy and prior resolutions are different? 
+    var_model_location_season = get_model_values_bilinear(model_data,proxy_data,var_name,i)
     #
     # Get the model values corresponding to the valid data of the proxy
     ind_proxy_valid = np.isfinite(proxy_values)
@@ -122,12 +142,12 @@ def rank_based(model_data,proxy_data,var_name,i,options,verbose=False):
     proxy_ages_valid_start = proxy_ages_valid[0]  - (options['time_resolution']/2)
     proxy_ages_valid_end   = proxy_ages_valid[-1] + (options['time_resolution']/2)
     ind_model_selected = np.where((age_model >= proxy_ages_valid_start) & (age_model <= proxy_ages_valid_end))[0]
-    #var_model_location_season_selected = var_model_location_season[ind_model_selected]
     #
-    # Calculate ranks for the proxy and prior data
+    # Calculate ranks for the proxy and prior data and scale them between 0 and 100
     ranks_proxy_values = rankdata(proxy_values_valid) - 1
     ranks_prior_values = rankdata(var_model_location_season) - 1
     percentile_proxy_values = (ranks_proxy_values / max(ranks_proxy_values)) * 100
+    percentile_proxy_values = ((ranks_proxy_values-min(ranks_proxy_values)) / (max(ranks_proxy_values)-min(ranks_proxy_values))) * 100
     percentile_prior_values = ((ranks_prior_values-min(ranks_prior_values[ind_model_selected])) / (max(ranks_prior_values[ind_model_selected])-min(ranks_prior_values[ind_model_selected]))) * 100
     #
     # Put the proxy data into the same length array as it was originally
@@ -145,13 +165,13 @@ def rank_based(model_data,proxy_data,var_name,i,options,verbose=False):
     import matplotlib.pyplot as plt
     plt.plot(proxy_ages,proxy_values,'k-')
     plt.plot(age_model,var_model_location_season,'b-')
+    plt.title("Original")
     plt.show()
     #
     plt.plot(proxy_ages,percentile_proxy_values_all,'k-')
     plt.plot(age_model,percentile_prior_values,'b-')
+    plt.title("Ranks")
     plt.show()
-    #
-    plt.scatter(proxy_values_valid,ranks_proxy_values)
     """
     #
     return percentile_prior_values,percentile_proxy_values_all

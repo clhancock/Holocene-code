@@ -6,7 +6,7 @@
 # This version of the code has been updated to focus on North America for the
 # North American ecological sensitivity project.
 # ---
-#    author: Michael Erb
+# author: Michael Erb
 #==============================================================================
 
 # Change working directory
@@ -82,10 +82,6 @@ proxy_ts,collection_all = da_load_proxies.load_proxies(options)
 # Filter the proxies and set PSMs
 proxy_ts_selected,psms_selected,collection_selected = da_load_proxies.filter_proxies_and_set_psms(proxy_ts,collection_all,options)
 
-
-# Pick up here.
-
-
 # Process the proxy data
 proxy_data = da_load_proxies.process_proxies(proxy_ts_selected,psms_selected,collection_selected,options)
 n_proxies = proxy_data['values_binned'].shape[0]
@@ -94,7 +90,7 @@ n_proxies = proxy_data['values_binned'].shape[0]
 #%% SET UNCERTAINTIES
 
 # If requested, alter the proxy uncertainty values.
-if options['change_uncertainty']:
+if options['change_uncertainty'] != False:
     
     if options['change_uncertainty'][0:5] == 'mult_':
         uncertainty_multiplier = float(options['change_uncertainty'][5:])
@@ -144,19 +140,16 @@ if options['reconstruction_type'] == 'relative':
         for var in options['vars_to_reconstruct']:
             model_data[var][ind_for_model,:,:]   = model_data[var][ind_for_model,:,:]   - np.mean(model_data[var][ind_ref,:,:],axis=0)
 
-# Use PSMs to get model-based proxy estimates
-proxy_estimates_all,_,proxy_data = da_psms.psm_main(model_data,proxy_data,options)
-
-# After computing proxy values, do more prior processing, if requested
-# This processing will affect spatial modeled covariances, but not the proxy estimates.
+# Do more prior processing, if requested
 if options['model_processing'] != 'None':
     print('Processing model: '+str(options['model_processing']))
     print("WARNING MODEL PROCESSING STILL IN DEVELOPMENT")
     model_data = da_load_models.detrend_model_data(model_data,options)
 
+#TODO: In the code above, is there a way to apply the filtering above only to covariances but not means?
 
-#TODO: Does the above code work as intended? How do I only apply filtering to covariances?
-#TODO: Perhaps output two variables here: one for means and once for variances.
+# Use PSMs to get model-based proxy estimates
+proxy_estimates_all,_,proxy_data = da_psms.psm_main(model_data,proxy_data,options)
 
 
 #%% FIND PROXIES TO ASSIMILATE AND MORE
@@ -233,10 +226,6 @@ else:
 
 print(' --- Final number of selected records: '+str(sum(proxy_ind_selected)))
 
-# Calculate the localization matrix (it may not be used)
-if options['assimate_together'] == False:
-    proxy_localization_all = da_utils.loc_matrix(options,model_data,proxy_data)
-
 
 #%% SET THINGS UP
 
@@ -274,6 +263,10 @@ prior_global_all  = np.zeros((n_ages,n_ens,n_vars));            prior_global_all
 prior_proxy_means = np.zeros((n_ages,n_proxies));               prior_proxy_means[:] = np.nan
 prior_proxy_ens   = np.zeros((n_ages,n_ens_to_save,n_proxies)); prior_proxy_ens[:]   = np.nan
 proxies_to_assimilate_all = np.zeros((n_ages,n_proxies));       proxies_to_assimilate_all[:] = np.nan
+
+# Calculate the localization matrix (it may not be used)
+if options['assimate_together'] == False:
+    proxy_localization_all = da_utils.loc_matrix(options,model_data,proxy_data)
 
 
 #%% DO DATA ASSIMILATION
@@ -313,13 +306,6 @@ for age_counter,age in enumerate(proxy_data['age_centers']):
     model_estimates_for_age    = model_estimates_for_age[ind_random_ens_to_use,:]
     model_number_for_prior     = model_number_for_prior[ind_random_ens_to_use]
     #
-    # For a prior_mean_always_0 reconstruction, remove the means of each model seperately
-    if ((options['reconstruction_type'] == 'relative') and (options['prior_mean_always_0'] == True)):
-        for i in range(n_models_in_prior):
-            ind_for_model = np.where(model_number_for_prior == (i+1))[0]
-            model_values_for_prior_all[ind_for_model,:,:,:] = model_values_for_prior_all[ind_for_model,:,:,:] - np.mean(model_values_for_prior_all[ind_for_model,:,:,:],axis=0)
-            model_estimates_for_age[ind_for_model,:]        = model_estimates_for_age[ind_for_model,:]        - np.mean(model_estimates_for_age[ind_for_model,:],axis=0)
-    #
     # Make the prior (Xb)
     prior = np.reshape(model_values_for_prior_all,(n_ens,n_varslatlon))
     #
@@ -328,47 +314,55 @@ for age_counter,age in enumerate(proxy_data['age_centers']):
     Xb = np.transpose(prior)
     Xb_original = Xb
     #
-    # Get the mean of all ensemble members and the values of some
-    prior_mean[:,age_counter]  = np.mean(Xb,axis=1)
-    prior_ens[:,:,age_counter] = Xb[:,ind_random_ens_to_save]
+    # Save some values for later
+    prior_mean[:,age_counter]        = np.mean(Xb,axis=1)                                 # Prior mean
+    prior_ens[:,:,age_counter]       = Xb[:,ind_random_ens_to_save]                       # Prior ensembles
+    prior_proxy_means[age_counter,:] = np.mean(model_estimates_for_age,axis=0)            # Prior proxy mean
+    prior_proxy_ens[age_counter,:,:] = model_estimates_for_age[ind_random_ens_to_save,:]  # Prior proxy ensembles
     #
-    # Save the prior estimates of proxies, for analysis later
-    prior_proxy_means[age_counter,:] = np.mean(model_estimates_for_age,axis=0)
-    prior_proxy_ens[age_counter,:,:] = model_estimates_for_age[ind_random_ens_to_save,:]
-    #
-    # Select only the proxies which meet the criteria
-    proxies_to_assimilate = proxy_ind_selected & np.isfinite(proxy_values_for_age) & np.isfinite(proxy_uncertainties_for_age) & np.isfinite(proxy_resolution_for_age) & np.isfinite(prior_proxy_means[age_counter,:])
+    # Select only the proxies which meet the criteria:
+    #  - Proxies were selected for analysis
+    #  - Proxies have values and uncertainties for the age of interest
+    proxies_to_assimilate = proxy_ind_selected &\
+                            np.isfinite(proxy_values_for_age) &\
+                            np.isfinite(proxy_uncertainties_for_age)
+                            #&\
+                            #np.isfinite(proxy_resolution_for_age) &\
+                            #np.isfinite(prior_proxy_means[age_counter,:])
     #
     # Keep a record of which proxies are assimilated
     proxies_to_assimilate_all[age_counter,:] = proxies_to_assimilate
-    #
-    # If valid proxies are present for this time step, do the data assimilation
     proxy_ind_to_assimilate = np.where(proxies_to_assimilate)[0]
+    #
+    
+    
+    # Pick up here
+    
+    
+    # If valid proxies are present for this time step, do the data assimilation
     n_proxies_at_age = proxy_ind_to_assimilate.shape[0]
     if n_proxies_at_age > 0:
         #
-        proxy_values_selected       = proxy_values_for_age[proxy_ind_to_assimilate]
-        proxy_uncertainty_selected  = proxy_uncertainties_for_age[proxy_ind_to_assimilate]
-        proxy_lats_selected         = proxy_data['lats'][proxy_ind_to_assimilate]
-        proxy_lons_selected         = proxy_data['lons'][proxy_ind_to_assimilate]
-        model_estimates_selected    = model_estimates_for_age[:,proxy_ind_to_assimilate]
-        proxy_localization_selected = proxy_localization_all[proxy_ind_to_assimilate,:]
-        R_diagonal = np.diag(proxy_uncertainty_selected)
-        #
         # Do the DA update, either together or one at a time.
         if options['assimate_together']:
+            #
+            proxy_values_selected       = proxy_values_for_age[proxy_ind_to_assimilate]
+            proxy_uncertainty_selected  = proxy_uncertainties_for_age[proxy_ind_to_assimilate]
+            model_estimates_selected    = model_estimates_for_age[:,proxy_ind_to_assimilate]
+            R_diagonal = np.diag(proxy_uncertainty_selected)
+            #
             Xa,_,_ = da_utils.damup(Xb,np.transpose(model_estimates_selected),R_diagonal,proxy_values_selected)
         else:
-            proxy = 1
-            for proxy in range(n_proxies_at_age):
+            proxy = proxy_ind_to_assimilate[0]
+            for proxy in enumerate(proxy_ind_to_assimilate):
                 #
                 # Get values for proxy
-                proxy_value       = proxy_values_selected[proxy]
-                proxy_uncertainty = proxy_uncertainty_selected[proxy]
-                proxy_lat         = proxy_lats_selected[proxy]
-                proxy_lon         = proxy_lons_selected[proxy]
-                model_estimates   = model_estimates_selected[:,proxy]
-                if options['localization_radius'] != 'None': loc = proxy_localization_selected[proxy,:]
+                proxy_value       = proxy_values_for_age[proxy]
+                proxy_uncertainty = proxy_uncertainties_for_age[proxy]
+                proxy_lat         = proxy_data['lats'][proxy]
+                proxy_lon         = proxy_data['lons'][proxy]
+                model_estimates   = model_estimates_for_age[:,proxy]
+                if options['localization_radius'] != 'None': loc = proxy_localization_all[proxy,:]
                 else: loc = None
                 #
                 # Do data assimilation
@@ -378,10 +372,12 @@ for age_counter,age in enumerate(proxy_data['age_centers']):
                 # If desired, make a map of the current state of the reconstruction for this age
                 if make_maps:
                     if age_counter % 100 == 0:
-                        var_toplot_updated = np.mean(np.reshape(Xb_updated[:n_varslatlon,:], (n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
-                        da_plot_results.make_map(var_toplot_updated,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,'after',exp_name_full,bounds=5,save_instead_of_plot=True)
-                        #var_toplot_start = np.mean(np.reshape(Xb[:n_varslatlon,:], (n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
-                        #da_plot_results.make_map(var_toplot_updated-var_toplot_start,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,'C_diff',exp_name_full,bounds=.25,save_instead_of_plot=True)
+                        # Make an updated map
+                        var_toplot_start   = np.mean(np.reshape(Xb[:n_varslatlon,:],        (n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
+                        var_toplot_updated = np.mean(np.reshape(Xb_updated[:n_varslatlon,:],(n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
+                        var_toplot_change  = var_toplot_updated-var_toplot_start
+                        da_plot_results.make_map(var_toplot_updated,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,'after', exp_name_full,bounds=5,  save_instead_of_plot=True)
+                        #da_plot_results.make_map(var_toplot_change, model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,'C_diff',exp_name_full,bounds=.25,save_instead_of_plot=True)
                 #
                 Xb = Xb_updated
             #
@@ -392,7 +388,7 @@ for age_counter,age in enumerate(proxy_data['age_centers']):
         # No proxies are assimilated
         Xa = Xb
     #
-    # Compute the global-mean of the prior
+    # Compute the spatial-mean of the prior
     prior_global = da_utils.global_mean(model_values_for_prior_all,model_data['lat'],2,3)
     prior_global_all[age_counter,:,:] = prior_global
     #

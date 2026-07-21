@@ -558,7 +558,6 @@ def loc_matrix(options,model_data,proxy_data):
             proxy_lon = proxy_data['lons'][i]
             #
             # Compute the localization values and save it to a common variable
-            #locRad, proxy_lat, proxy_lon, X_coords = options['localization_radius'],proxy_lat,proxy_lon,prior_coords
             proxy_localization = da_utils_lmr.cov_localization(options['localization_radius'],proxy_lat,proxy_lon,prior_coords)
             proxy_localization_all[i,:] = proxy_localization
     #
