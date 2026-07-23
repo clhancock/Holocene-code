@@ -61,7 +61,7 @@ def get_model_values_bilinear(model_data,proxy_data,var_name,i,verbose=False):
     proxy_season = proxy_data['seasonality_array'][i]
     ndays_model  = model_data['time_ndays']
     proxy_direction = proxy_data['direction'][i]
-   #
+    #
     if (proxy_lat > np.max(model_data['lat'])) | (proxy_lat < np.min(model_data['lat'])): print("WARNING: Proxy lat outside of model bounds:",proxy_lat)
     if (proxy_lon > np.max(model_data['lon'])) | (proxy_lon < np.min(model_data['lon'])): print("WARNING: Proxy lon outside of model bounds:",proxy_lon)
     #
@@ -132,13 +132,13 @@ def rank_based(model_data,proxy_data,var_name,i,options,verbose=False):
     age_model    = model_data['age']
     proxy_ages   = proxy_data['age_centers']
     proxy_values = proxy_data['values_binned'][i]
-    #
     var_model_location_season = get_model_values_bilinear(model_data,proxy_data,var_name,i)
     #
     # Get the model values corresponding to the valid data of the proxy
-    ind_proxy_valid = np.isfinite(proxy_values)
-    proxy_values_valid = proxy_values[ind_proxy_valid]
-    proxy_ages_valid   = proxy_ages[ind_proxy_valid]
+    logical_proxy_valid = np.isfinite(proxy_values)
+    if sum(logical_proxy_valid) == 0: return proxy_values,proxy_values
+    proxy_values_valid = proxy_values[logical_proxy_valid]
+    proxy_ages_valid   = proxy_ages[logical_proxy_valid]
     proxy_ages_valid_start = proxy_ages_valid[0]  - (options['time_resolution']/2)
     proxy_ages_valid_end   = proxy_ages_valid[-1] + (options['time_resolution']/2)
     ind_model_selected = np.where((age_model >= proxy_ages_valid_start) & (age_model <= proxy_ages_valid_end))[0]
@@ -152,7 +152,7 @@ def rank_based(model_data,proxy_data,var_name,i,options,verbose=False):
     #
     # Put the proxy data into the same length array as it was originally
     percentile_proxy_values_all = np.zeros((len(proxy_values))); percentile_proxy_values_all[:] = np.nan
-    percentile_proxy_values_all[ind_proxy_valid] = percentile_proxy_values
+    percentile_proxy_values_all[logical_proxy_valid] = percentile_proxy_values
     #
     # Remove the reference period from the proxy and prior values  #TODO: Check that this is a good solution.
     ind_ref_proxy = np.where((proxy_ages >= options['reference_period'][0]) & (proxy_ages < options['reference_period'][1]))[0]

@@ -61,6 +61,7 @@ print_counts <- function(selected_ts,var_name) {
 #print_counts(all_ts,"interpretation1_variable")        # Note: Alternate version with capital I
 #print_counts(all_ts,"interpretation1_variableDetail")  # Note: Alternate version with capital I
 #print_counts(all_ts,"paleoData_temperature12kUncertainty")
+#print_counts(all_ts,"paleoData_description")
 
 # Other potentially useful vars:
 # agesPerKyr, maxYear, minYear, geo_latitude,geo_longitude, paleoData_TSid, paleoData_summaryStatistic
@@ -73,6 +74,7 @@ metadata_all <- data.frame(
   datasetname = pullTsVariable(all_ts,"dataSetName"),
   primary1    = pullTsVariable(all_ts,"paleoData_isPrimary"),
   primary2    = pullTsVariable(all_ts,"paleoData_primaryTimeseries"),
+  primary3    = pullTsVariable(all_ts,"paleoData_useInGlobalTemperatureAnalysis"),
   variable    = pullTsVariable(all_ts,"paleoData_variableName"),
   lat         = pullTsVariable(all_ts,"geo_latitude"),
   lon         = pullTsVariable(all_ts,"geo_longitude"),
@@ -81,10 +83,14 @@ metadata_all <- data.frame(
   interpvar   = pullTsVariable(all_ts,"interpretation1_variable"),
   units       = pullTsVariable(all_ts,"paleoData_units"),
   temp_uncer  = pullTsVariable(all_ts,"paleoData_temperature12kUncertainty"),
+  description = pullTsVariable(all_ts,"paleoData_description"),
   has_values  = !sapply(pullTsVariable(all_ts,"paleoData_values"), is.null),
   has_age     = !sapply(pullTsVariable(all_ts,"age"), is.null),
   has_year    = !sapply(pullTsVariable(all_ts,"year"), is.null)
 )
+
+selected <- metadata_all |> 
+  filter(datasetname == "BCTempComp.Gavin.2013")
 
 # NA values disrupt the filtering later. Replace all NA values with "NA"
 metadata_all <- metadata_all %>% 
@@ -189,4 +195,4 @@ metadata_selected <- metadata_selected[ind_selected_step2,]
 
 # Save filtered data
 #saveRDS(ts_selected,file=paste0(da_dir,'ecoclimate_selected_ts_',data_date,'.rds'))
-#saveRDS(metadata_selected,file=paste0(da_dir,'ecoclimate_selected_metadata_',data_date,'.rds'))
+saveRDS(metadata_selected,file=paste0(da_dir,'ecoclimate_selected_metadata_',data_date,'.rds'))

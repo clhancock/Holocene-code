@@ -8,6 +8,7 @@ import numpy as np
 import lipd
 from scipy import interpolate
 import rdata
+import geopy.distance
 
 # A function to load the chosen proxy datasets
 def load_proxies(options):
@@ -335,3 +336,96 @@ def process_proxies(proxy_ts_selected,psms_selected,collection_selected,options)
     print('=========================\n')
     #
     return proxy_data
+
+
+# Average records within 1 km of each other
+def average_nearby_records(proxy_data,options):
+    print('NOTE: Proxy averaging not yet implmented')
+    return proxy_data
+    #
+    """
+    # Settings
+    distance_threshhold = 1  # Distance threshhold in km
+    #
+    n_proxies = proxy_data['values_binned'].shape[0]
+    n_ages    = proxy_data['values_binned'].shape[1]
+    #
+    proxy_data.keys()
+    # Compute distances
+    distances_km = np.zeros((n_proxies,n_proxies)); distances_km[:] = np.nan
+    i=0; j=1
+    for i in range(n_proxies):
+        proxy_lat_1 = proxy_data['lats'][i]
+        proxy_lon_1 = proxy_data['lons'][i]
+        distances_km[i,i] = 0
+        for j in range(i+1,n_proxies):
+            proxy_lat_2 = proxy_data['lats'][j]
+            proxy_lon_2 = proxy_data['lons'][j]
+            #
+            # Calculate distance
+            distances_km[i,j] = geopy.distance.great_circle((proxy_lat_1,proxy_lon_1),(proxy_lat_2,proxy_lon_2)).km
+    #
+    # Find groups of nearby_proxies
+    groups = {}
+    group_key = 0
+    for i in range(n_proxies):
+        # Find other proxies close to the selected proxy
+        distances_to_selected_proxy = distances_km[i,:]
+        ind_within_distance = np.where((distances_to_selected_proxy <= distance_threshhold))[0]
+        # If at least one record is found, create a group
+        if len(ind_within_distance) > 0:
+            groups[group_key] = ind_within_distance
+            group_key += 1
+        # Set selected distances to nan, so selected proxies don't appear in any more groups
+        distances_km[:,ind_within_distance] = np.nan
+    #
+    # Set up new variables
+    n_groups = group_key
+    proxy_data_new = {}
+    proxy_data_new['values_binned']     = np.zeros((n_groups,n_ages));          proxy_data_new['values_binned'][:]     = np.nan
+    proxy_data_new['resolution_binned'] = np.zeros((n_groups,n_ages));          proxy_data_new['resolution_binned'][:] = np.nan
+    proxy_data_new['metadata']          = np.zeros((n_groups,11),dtype=object); proxy_data_new['metadata'][:]          = np.nan
+    proxy_data_new['lats']              = np.zeros((n_groups));                 proxy_data_new['lats'][:]              = np.nan
+    proxy_data_new['lons']              = np.zeros((n_groups));                 proxy_data_new['lons'][:]              = np.nan
+    proxy_data_new['uncertainty']       = []
+    proxy_data_new['archivetype']       = []
+    proxy_data_new['proxytype']         = []
+    proxy_data_new['units']             = []
+    proxy_data_new['interp']            = []
+    proxy_data_new['direction']         = []
+    proxy_data_new['seasonality_array'] = {}
+    proxy_data_new['psm']               = []
+    #
+    # For each group, compute the mean
+    i = 0
+    for i in range(n_groups):
+        ind_to_mean = groups[i]
+        if len(ind_to_mean) == 0:
+            proxy_data_new['values_binned'][i,:]     = np.nanmean(proxy_data['values_binned'][ind_to_mean,:],axis=0)
+            proxy_data_new['resolution_binned'][i,:] = np.nanmean(proxy_data['resolution_binned'][ind_to_mean,:],axis=0)
+            #proxy_data_new['metadata'][i,:]          = np.nanmean(proxy_data['values_binned'][ind_to_mean,:],axis=0)
+            proxy_data_new['lats'][i]                = np.nanmean(proxy_data['lats'][ind_to_mean],axis=0)
+            proxy_data_new['lons'][i]                = np.nanmean(proxy_data['lons'][ind_to_mean],axis=0)
+            proxy_data_new['uncertainty'].append(np.nanmean(proxy_data['uncertainty'][ind_to_mean],axis=0))
+            proxy_data_new['archivetype']       = []
+            proxy_data_new['proxytype']         = []
+            proxy_data_new['units']             = []
+            proxy_data_new['interp']            = []
+            proxy_data_new['direction']         = []
+            proxy_data_new['seasonality_array'] = {}
+            proxy_data_new['psm']               = []
+     """
+
+
+"""
+# A wrapper for average_nearby_records function, so that only records with the same PSM are averaged
+def average_by_psm(proxy_data,options):
+    #
+    #proxy_data.keys()
+    # Treat each PSM seperately
+    psms_all = np.unique(proxy_data['psm'])
+    psm_selected = psms_all[0]
+    for psm_selected in psms_all:
+        #
+        ind_selected = np.where(np.array(proxy_data['psm']) == psm_selected)[0]
+"""

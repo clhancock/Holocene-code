@@ -27,6 +27,7 @@ assimilate_selected_region:     False  # Provide bounds to assimilate only proxi
 assimilate_selected_resolution: False  # Assimilate proxies with median resolutions in a given band {False, [0,100]}.  Bounds are [inclusive,exclusive].
 percent_to_assimilate:          100    # What percentage of proxies to assimilate {100}
 seed_for_proxy_choice:          0      # This seed is only used if 'percent_to_assimilate' is below 100 {0}
+average_nearby_proxies:         False  # If True, average together proxy records within 1km of each other {True,False}  NOTE: Not yet implemented
 
 # Models for prior
 models_for_prior: ['trace']   # The model to use {['trace','itrace','hadcm3']}

@@ -28,7 +28,8 @@ import da_psms
 import da_plot_results
 
 # Make maps of proxy-by-proxy updates
-make_maps = False
+#age_ind_to_map = False
+age_ind_to_map = [0,100,200]
 
 
 #%% SETTINGS
@@ -84,7 +85,41 @@ proxy_ts_selected,psms_selected,collection_selected = da_load_proxies.filter_pro
 
 # Process the proxy data
 proxy_data = da_load_proxies.process_proxies(proxy_ts_selected,psms_selected,collection_selected,options)
+
+# Average nearby proxies, if selected
+if options['average_nearby_proxies']:
+    proxy_data = da_load_proxies.average_nearby_records(proxy_data,options)
+
 n_proxies = proxy_data['values_binned'].shape[0]
+
+
+#%% LOAD AND PROCESS MODEL DATA
+
+# Load the chosen model data
+model_data = da_load_models.load_model_data(options)
+n_models_in_prior = len(options['models_for_prior'])
+
+# If the prior is allowed to change through time, remove the mean of the reference period from each model.
+if options['reconstruction_type'] == 'relative':
+    print('Processing model: relative reconstruction')
+    for i in range(n_models_in_prior):
+        ind_for_model = (model_data['number'] == (i+1))
+        ind_ref = (model_data['age'] >= options['reference_period'][0]) & (model_data['age'] < options['reference_period'][1]) & ind_for_model
+        for var in options['vars_root']:
+            model_data[var][ind_for_model,:,:,:] = model_data[var][ind_for_model,:,:,:] - np.mean(model_data[var][ind_ref,:,:,:],axis=0)
+        for var in options['vars_to_reconstruct']:
+            model_data[var][ind_for_model,:,:]   = model_data[var][ind_for_model,:,:]   - np.mean(model_data[var][ind_ref,:,:],axis=0)
+
+# Do more prior processing, if requested
+if options['model_processing'] != 'None':
+    print('Processing model: '+str(options['model_processing']))
+    print("WARNING MODEL PROCESSING STILL IN DEVELOPMENT")
+    model_data = da_load_models.detrend_model_data(model_data,options)
+
+#TODO: In the code above, is there a way to apply the filtering above only to covariances but not means?
+
+# Use PSMs to get model-based proxy estimates
+proxy_estimates_all,_,proxy_data = da_psms.psm_main(model_data,proxy_data,options)
 
 
 #%% SET UNCERTAINTIES
@@ -121,35 +156,6 @@ if options['change_uncertainty'] != False:
                 proxy_data['uncertainty'][i] = np.nan
             else:
                 proxy_data['uncertainty'][i] = proxy_uncertainties_from_file[index_uncertainty,1].astype(float)
-
-
-#%% LOAD AND PROCESS MODEL DATA
-
-# Load the chosen model data
-model_data = da_load_models.load_model_data(options)
-n_models_in_prior = len(options['models_for_prior'])
-
-# If the prior is allowed to change through time, remove the mean of the reference period from each model.
-if options['reconstruction_type'] == 'relative':
-    print('Processing model: relative reconstruction')
-    for i in range(n_models_in_prior):
-        ind_for_model = (model_data['number'] == (i+1))
-        ind_ref = (model_data['age'] >= options['reference_period'][0]) & (model_data['age'] < options['reference_period'][1]) & ind_for_model
-        for var in options['vars_root']:
-            model_data[var][ind_for_model,:,:,:] = model_data[var][ind_for_model,:,:,:] - np.mean(model_data[var][ind_ref,:,:,:],axis=0)
-        for var in options['vars_to_reconstruct']:
-            model_data[var][ind_for_model,:,:]   = model_data[var][ind_for_model,:,:]   - np.mean(model_data[var][ind_ref,:,:],axis=0)
-
-# Do more prior processing, if requested
-if options['model_processing'] != 'None':
-    print('Processing model: '+str(options['model_processing']))
-    print("WARNING MODEL PROCESSING STILL IN DEVELOPMENT")
-    model_data = da_load_models.detrend_model_data(model_data,options)
-
-#TODO: In the code above, is there a way to apply the filtering above only to covariances but not means?
-
-# Use PSMs to get model-based proxy estimates
-proxy_estimates_all,_,proxy_data = da_psms.psm_main(model_data,proxy_data,options)
 
 
 #%% FIND PROXIES TO ASSIMILATE AND MORE
@@ -334,11 +340,6 @@ for age_counter,age in enumerate(proxy_data['age_centers']):
     proxies_to_assimilate_all[age_counter,:] = proxies_to_assimilate
     proxy_ind_to_assimilate = np.where(proxies_to_assimilate)[0]
     #
-    
-    
-    # Pick up here
-    
-    
     # If valid proxies are present for this time step, do the data assimilation
     n_proxies_at_age = proxy_ind_to_assimilate.shape[0]
     if n_proxies_at_age > 0:
@@ -353,31 +354,31 @@ for age_counter,age in enumerate(proxy_data['age_centers']):
             #
             Xa,_,_ = da_utils.damup(Xb,np.transpose(model_estimates_selected),R_diagonal,proxy_values_selected)
         else:
-            proxy = proxy_ind_to_assimilate[0]
-            for proxy in enumerate(proxy_ind_to_assimilate):
+            ind_proxy = proxy_ind_to_assimilate[0]
+            for ind_proxy in proxy_ind_to_assimilate:
+                #print(ind_proxy)
                 #
                 # Get values for proxy
-                proxy_value       = proxy_values_for_age[proxy]
-                proxy_uncertainty = proxy_uncertainties_for_age[proxy]
-                proxy_lat         = proxy_data['lats'][proxy]
-                proxy_lon         = proxy_data['lons'][proxy]
-                model_estimates   = model_estimates_for_age[:,proxy]
-                if options['localization_radius'] != 'None': loc = proxy_localization_all[proxy,:]
+                proxy_value       = proxy_values_for_age[ind_proxy]
+                proxy_uncertainty = proxy_uncertainties_for_age[ind_proxy]
+                proxy_lat         = proxy_data['lats'][ind_proxy]
+                proxy_lon         = proxy_data['lons'][ind_proxy]
+                model_estimates   = model_estimates_for_age[:,ind_proxy]
+                if options['localization_radius'] != 'None': loc = proxy_localization_all[ind_proxy,:]
                 else: loc = None
                 #
                 # Do data assimilation
                 Xb_updated = da_utils_lmr.enkf_update_array(Xb,proxy_value,model_estimates,proxy_uncertainty,options,loc=loc,inflate=None)
-                if np.isnan(Xb).all(): print(' !!! ERROR.  ALL RECONSTRUCTION VALUES SET TO NAN.  Age='+str(age)+', proxy number='+str(proxy)+' !!!')
+                if np.isnan(Xb).all(): print(' !!! ERROR.  ALL RECONSTRUCTION VALUES SET TO NAN.  Age='+str(age)+', proxy number='+str(ind_proxy)+' !!!')
                 #
                 # If desired, make a map of the current state of the reconstruction for this age
-                if make_maps:
-                    if age_counter % 100 == 0:
-                        # Make an updated map
-                        var_toplot_start   = np.mean(np.reshape(Xb[:n_varslatlon,:],        (n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
-                        var_toplot_updated = np.mean(np.reshape(Xb_updated[:n_varslatlon,:],(n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
-                        var_toplot_change  = var_toplot_updated-var_toplot_start
-                        da_plot_results.make_map(var_toplot_updated,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,'after', exp_name_full,bounds=5,  save_instead_of_plot=True)
-                        #da_plot_results.make_map(var_toplot_change, model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,proxy,age,'C_diff',exp_name_full,bounds=.25,save_instead_of_plot=True)
+                if age_counter in age_ind_to_map:
+                    # Make an updated map
+                    var_toplot_start   = np.mean(np.reshape(Xb[:n_varslatlon,:],        (n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
+                    var_toplot_updated = np.mean(np.reshape(Xb_updated[:n_varslatlon,:],(n_vars,n_lat,n_lon,n_ens))[0,:,:,:],axis=2)
+                    var_toplot_change  = var_toplot_updated-var_toplot_start
+                    da_plot_results.make_map(var_toplot_updated,model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,ind_proxy,age,'after', exp_name_full,bounds=5,  save_instead_of_plot=True)
+                    #da_plot_results.make_map(var_toplot_change, model_data,proxy_value,proxy_lat,proxy_lon,proxy_uncertainty,ind_proxy,age,'C_diff',exp_name_full,bounds=.25,save_instead_of_plot=True)
                 #
                 Xb = Xb_updated
             #
