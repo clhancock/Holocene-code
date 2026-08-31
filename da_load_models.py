@@ -413,9 +413,9 @@ def process_models(model_name,var_name,time_resolution,age_range,output_dir,orig
         time_ndays_model_nyearmean      = time_ndays_model_yearsmonths[age_indices_for_model_means,:]
     else:
         n_means = int(len(age_indices_for_model_means)/effective_time_resolution)
-        var_model_yearsmonths_nyearmean = np.nanmean(np.reshape(var_model_yearsmonths[age_indices_for_model_means,:,:,:],   (n_means,effective_time_resolution,1,len(lat_model),len(lon_model))),axis=1)  # Note: nanmean is used here because itrace has two missing decades toward the older end.
+        var_model_yearsmonths_nyearmean = np.nanmean(np.reshape(var_model_yearsmonths[age_indices_for_model_means,:,:,:],   (n_means,effective_time_resolution,12,len(lat_model),len(lon_model))),axis=1)  # Note: nanmean is used here because itrace has two missing decades toward the older end.
         age_model_nyearmean             = np.mean(np.reshape(age_model[age_indices_for_model_means],                     (n_means,effective_time_resolution)),   axis=1)
-        time_ndays_model_nyearmean      = np.mean(np.reshape(time_ndays_model_yearsmonths[age_indices_for_model_means,:],(n_means,effective_time_resolution,1)),axis=1)
+        time_ndays_model_nyearmean      = np.mean(np.reshape(time_ndays_model_yearsmonths[age_indices_for_model_means,:],(n_means,effective_time_resolution,12)),axis=1)
     #
     # Regrid the models
     var_model_regrid,lat_model_regrid,lon_model_regrid = da_utils.regrid_model(var_model_yearsmonths_nyearmean,lat_model,lon_model,age_model_nyearmean)
