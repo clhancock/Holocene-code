@@ -330,8 +330,12 @@ def process_proxies(proxy_ts_selected,psms_selected,collection_selected,options)
             if np.isnan(proxy_values_interp[ind_ref]).all(): print('No data in reference period, index: '+str(i)); no_ref_data += 1
         #
         # Convert seasonality to a list of months, with negative values corresponding to the previous year.
-        proxy_lat = proxy_ts_selected[i]['geo_latitude'][0]
-        proxy_lon = proxy_ts_selected[i]['geo_longitude'][0]
+        try:    proxy_lat = proxy_ts_selected[i]['geo_latitude']
+        except: proxy_lat = proxy_ts_selected[i]['geo_meanLat']
+        if type(proxy_lat) == list(): proxy_lat=proxy_lat[0]
+        try:    proxy_lon = proxy_ts_selected[i]['geo_longitude']
+        except: proxy_lon = proxy_ts_selected[i]['geo_meanLon']
+        if type(proxy_lon) == list(): proxy_lat=proxy_lon[0]
         #
         if 'interpretation1_seasonality' in proxy_ts_selected[i].keys():
             if type(proxy_ts_selected[i]['interpretation1_seasonality']) == list:

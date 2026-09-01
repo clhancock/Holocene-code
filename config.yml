@@ -10,7 +10,7 @@ data_dir: '/Users/christopherhancock/Library/CloudStorage/OneDrive-NorthernArizo
 # Primary options
 exp_name: 'eco21ka_trace'  # The experiment name, which will be appended to the filename. Pick something short & memorable, using only letters, numbers, and underscores.
 #CH - Is there a way to load model data that's not vars_to_reconstruct? Maybe from proxies to use? We want to load lake status but don't need to reconstruct it? Same for SST?
-vars_to_reconstruct:   ['tas_annual','precip_annual','lakeStatus_annual']  # The variables to reconstruct {['tas','precip']}, then season after underscore (e.g., "annual", "jja", "djf", "month_01", "month_02").
+vars_to_reconstruct:   ['tas_annual','precip_annual','LakeStatus_annual']  # The variables to reconstruct {['tas','precip']}, then season after underscore (e.g., "annual", "jja", "djf", "month_01", "month_02").
 #vars_to_reconstruct:   ['tas_annual','tas_month_01','tas_month_02','tas_month_03','tas_month_04','tas_month_05','tas_month_06','tas_month_07','tas_month_08','tas_month_09','tas_month_10','tas_month_11','tas_month_12']
 time_resolution:       100      # The base temporal resolution, in years {100}
 maximum_resolution:    100      # The maximum temporal resolution to assimilate proxies at, in years {100}
