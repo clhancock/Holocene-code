@@ -21,7 +21,7 @@ percent_of_prior:      100      # What percentage of the prior states to assimil
 seed_for_prior:        0        # This seed is only used if 'percent_of_prior' is below 100 {0}
 
 # Proxies to assimilate
-proxies_to_use:                 ['temperature|temperature|any|any|degC|calibrated_tas','precipitation|precipitation|any|any|mm/yr|calibrated_precip','precipitation|accumulation|any|any|mm/yr|calibrated_precip','effectivePrecipitation|lakeLevel|any|any|any|rank_based_LakeStatus']  # Proxies to assimilate, in the format of interp|variable|archive|proxy|units|psm. Use "any" to select anything in a category. "psm" specifies the PSM to use. Use commas to select multiple values in a category. Available psms: calibrated_tas, calibrated_precip, rank_based_tas, rank_based_precip
+proxies_to_use:                 ['temperature|temperature|any|any|degC|calibrated_tas','precipitation|precipitation|any|any|mm/yr|calibrated_precip','precipitation|accumulation|any|any|mm/yr|calibrated_precip','precipitation|accumulation|any|any|g/cm2/yr|calibrated_precip','effectivePrecipitation|lakeLevel|any|any|any|rank_based_LakeStatus']  # Proxies to assimilate, in the format of interp|variable|archive|proxy|units|psm. Use "any" to select anything in a category. "psm" specifies the PSM to use. Use commas to select multiple values in a category. Available psms: calibrated_tas, calibrated_precip, rank_based_tas, rank_based_precip
 assimilate_selected_seasons:    ['annual','summer','winter']  # Assimilate proxies with the selected seasonality. Note, the reconstruction will still try to represent annual means. {False, ['annual','summeronly','winteronly','summer+','winter+'], 'jja_preferred', 'djf_preferred'}
 assimilate_selected_archives:   False  # Provide a list of one or more archive types to assimilate {False, ['LakeSediment','MarineSediment','Peat','GlacierIce','Midden','Speleothem','Wood','Ice-other']}
 assimilate_selected_region:     False  # Provide bounds to assimilate only proxies in a given region {False, [lat_min,lat_max,lon_min,lon_max]} using lons between 0-360.
@@ -39,7 +39,7 @@ proxy_datasets_to_assimilate: ['NAm21k-noPollen/0_1_0']
 
 # Age ranges
 age_range_to_reconstruct: [0,21000]
-reference_period:         [3000,5000]  # This is only used if 'reconstruction_type' is set to 'relative'
+reference_period:         [0,21000]  # This is only used if 'reconstruction_type' is set to 'relative'
 age_range_model:          [0,22000]
 
 # Experimental options (These options are less well-tested or may not be fully implemented. Edit with care.)
@@ -47,7 +47,7 @@ reconstruction_type: 'relative'  # Reconstruction absolute or relative values {'
 restrict_kalman:     False       # If True, cov/var in the kalman gain equation is not allowed to be smaller than 0 or larger than 1 {True, False} NOTE: currently only works with assilimate_together=False
 model_processing:    None        # Processing the model prior {None,'linear_global','linear_spatial','highpass_spatial'}
 assign_seasonality:  False       # If something other than false, all proxies are set to specific seasonalities {False,'annual','summer','winter','jja','djf'}
-change_uncertainty:  'stdev_1'   # Change uncertainty values in several ways {False,'mult_#','all_#','stdev_#','path/to/file.txt'}
+change_uncertainty:  '/Users/christopherhancock/Library/CloudStorage/OneDrive-NorthernArizonaUniversity/ECS_DA/data/proxies/NAm21k-noPollen_unc.csv'   # Change uncertainty values in several ways {False,'mult_#','all_#','stdev_#','path/to/file.txt'}
    # False     Use values from metadata.
    # 'mult_#'  Multiply uncertainty values from metadata by a constant number.
    # 'all_#'   Set uncertainty values to a constant number.

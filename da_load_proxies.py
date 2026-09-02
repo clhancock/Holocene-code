@@ -49,6 +49,11 @@ def load_proxies(options):
                     all_ts = lipd.extractTs(D)
                     np.save(dir_proxies+proxy_dataset_name+proxy_version+'.npy',all_ts,allow_pickle=True)
             proxy_ts_ds = []
+            # If uncertinaity file, use TSids to select data to add to compilation (allows for flexibility for metadata issues)
+            try: 
+                proxy_uncertainties_from_file = np.genfromtxt(options['change_uncertainty'],delimiter=',',dtype='str')
+                proxy_tsids_from_file = [x[0] for x in proxy_uncertainties_from_file]
+            except: proxy_tsids_from_file= False
             #
             # Add data based on inCompilation metadata
             for i in range(len(all_ts)):
@@ -62,19 +67,27 @@ def load_proxies(options):
                 # Exclude include relative data for absolute reconsutriction
                 if options['reconstruction_type'] == 'absolute':
                     if ('paleoData_datum' not in all_ts[i].keys()): continue     
-                    if (all_ts[i]['paleoData_datum'] != 'abs'): continue   
-                if 'paleoData_inCompilation' in all_ts[i].keys():
-                    # Incliude data based on comilation
-                    for comp in all_ts[i]['paleoData_inCompilation']:
-                        if (proxy_version in comp['compilationVersion']) & (proxy_dataset_name == comp['compilationName']):
-                            proxy_ts_ds.append(all_ts[i])
-            print(f'Number of {proxy_dataset_name} records selected:',len(proxy_ts_ds))
+                    if (all_ts[i]['paleoData_datum'] != 'abs'): continue  
+                # Include if within provided list 
+                if type(proxy_tsids_from_file) == list:
+                    if all_ts[i]['paleoData_TSid'] in proxy_tsids_from_file:
+                        proxy_ts_ds.append(all_ts[i]) 
+                else: 
+                    if 'paleoData_inCompilation' in all_ts[i].keys():
+                        # Incliude data based on comilation
+                        for comp in all_ts[i]['paleoData_inCompilation']:
+                            if (proxy_version in comp['compilationVersion']) & (proxy_dataset_name == comp['compilationName']):
+                                proxy_ts_ds.append(all_ts[i])
+
+
+            #print(f'Number of {proxy_dataset_name} records selected:',len(proxy_ts_ds))
             #
             # Some proxies have problems in the metadata.  Fix them here.
             for i in range(len(proxy_ts_ds)):
                 proxy_ts_ds[i]['paleoData_values'] = [float(x) for x in proxy_ts_ds[i]['paleoData_values']]
                 if ('paleoData_interpretation' in proxy_ts_ds[i].keys()) & ('interpretation1_variable' not in proxy_ts_ds[i].keys()):
-                    proxy_ts_ds[i]['interpretation1_variable'] = proxy_ts_ds[i]['paleoData_interpretation'][0]['variable']
+                    try: proxy_ts_ds[i]['interpretation1_variable'] = proxy_ts_ds[i]['paleoData_interpretation'][0]['variable']
+                    except:  proxy_ts_ds[i]['interpretation1_variable'] = 'Not Given'
                 if ('paleoData_interpretation' in proxy_ts_ds[i].keys()) & ('interpretation1_seasonality' not in proxy_ts_ds[i].keys()):
                     try: proxy_ts_ds[i]['interpretation1_seasonality'] = proxy_ts_ds[i]['paleoData_interpretation'][0]['seasonality']
                     except:  proxy_ts_ds[i]['interpretation1_seasonality'] = 'Not Given'
@@ -245,6 +258,11 @@ def process_proxies(proxy_ts_selected,psms_selected,collection_selected,options)
             proxy_uncertainty = proxy_uncertainty/365.25
             data_units = 'mm/day'
             print('Proxy '+str(i)+': Updating units from mm/yr to mm/day')
+        elif data_units == 'g/cm2/yr':
+            proxy_values      = (proxy_values*1000)/365.25
+            proxy_uncertainty = proxy_uncertainty/365.25
+            data_units = 'mm/day'
+            print('Proxy '+str(i)+': Updating units from g/cm2/yr to mm/day')
         #
         # INTERPOLATION
         # To interpolate the proxy data to the base resolution (by default: centennial):
