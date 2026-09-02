@@ -39,7 +39,7 @@ proxy_datasets_to_assimilate: ['NAm21k-noPollen/0_1_0']
 
 # Age ranges
 age_range_to_reconstruct: [0,21000]
-reference_period:         [0,21000]  # This is only used if 'reconstruction_type' is set to 'relative'
+reference_period:         [3000,5000]  # This is only used if 'reconstruction_type' is set to 'relative'
 age_range_model:          [0,22000]
 
 # Experimental options (These options are less well-tested or may not be fully implemented. Edit with care.)

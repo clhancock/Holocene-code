@@ -43,9 +43,12 @@ def psm_main(model_data,proxy_data,options):
         if options['reconstruction_type']=='relative':
             age_model    = model_data['age']
             proxy_ages_valid   = proxy_data['age_centers'][np.isfinite(proxy_data['values_binned'][i])]
-            ind_model_proxy = ((age_model >= proxy_ages_valid[0]  - (options['time_resolution']/2)) & (age_model <= proxy_ages_valid[-1] + (options['time_resolution']/2)))
-            ind_model_refwindow = ((age_model >= options['reference_period'][0]) & (age_model  < options['reference_period'][1]))
-            proxy_estimate     = proxy_estimate - np.mean(proxy_estimate[ind_model_proxy & ind_model_refwindow])
+            if len(proxy_ages_valid) == 0: 
+                proxy_estimate[:] *= np.nan
+            else: 
+                ind_model_proxy = ((age_model >= proxy_ages_valid[0]  - (options['time_resolution']/2)) & (age_model <= proxy_ages_valid[-1] + (options['time_resolution']/2)))
+                ind_model_refwindow = ((age_model >= options['reference_period'][0]) & (age_model  < options['reference_period'][1]))
+                proxy_estimate     = proxy_estimate - np.mean(proxy_estimate[ind_model_proxy & ind_model_refwindow])
         #
         # Loop through each time resolution, computing a running mean of the selected duration and save the values to a common variable
         # Note: While convolve may average across different models, those values won't be used (because of the model_data['valid_inds'] variable).
